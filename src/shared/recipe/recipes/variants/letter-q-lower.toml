@@ -1,0 +1,12 @@
+# Axis: lowercase q tail
+# SS08 default: not explicitly set
+# PragmataPro target: straight descender
+
+prime = "q"
+
+candidates = [
+    "straight-serifless",            # straight descender — PragmataPro target
+    "earless-corner-straight-serifless",
+    "straight-serifed",
+    "straight-motion-bottom-serifed",
+]

@@ -1,0 +1,11 @@
+# Axis: digit one (1)
+# SS08 default: inherits from ss08 (not explicitly set — uses default Iosevka shape)
+# PragmataPro target: bottom serif + flat top serif (slab foot + flag)
+
+prime = "one"
+
+candidates = [
+    "base-flat-top-serif",  # bottom serif + flat top — PragmataPro target
+    "base",                 # bottom serif, no top serif
+    "no-base",              # no bottom serif
+]

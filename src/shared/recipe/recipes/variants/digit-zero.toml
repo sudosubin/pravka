@@ -1,0 +1,13 @@
+# Axis: digit zero (0)
+# SS08 default: "diamond-reverse-slashed-split" — diamond body, split reverse slash
+# PragmataPro target: centered dot (dotted zero)
+
+prime = "zero"
+
+candidates = [
+    "dotted",                       # standard body + center dot — PragmataPro target
+    "oval-dotted",                  # oval body + center dot
+    "oval-unslashed",               # plain oval, no overlay
+    "diamond-reverse-slashed-split", # SS08 default
+    "slashed",                      # standard + slash
+]

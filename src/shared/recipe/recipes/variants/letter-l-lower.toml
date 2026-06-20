@@ -1,0 +1,13 @@
+# Axis: lowercase l
+# SS08 default: "zshaped" — distinctive Pragmata z-curve shape
+# PragmataPro target: zshaped (matching Pragmata)
+
+prime = "l"
+
+candidates = [
+    "zshaped",              # SS08 default — matches Pragmata's distinctive l
+    "hooky",                # bottom-right hook
+    "tailed",               # cursive tail
+    "serifed",              # bilateral serifs
+    "serifed-flat-tailed",  # serifed + flat tailed
+]

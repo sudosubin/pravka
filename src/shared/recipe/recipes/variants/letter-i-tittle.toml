@@ -1,0 +1,14 @@
+# Axis: tittle (dot above i/j)
+# SS08 default: round (not explicitly set in ss08 composite — Iosevka default)
+# PragmataPro target: square dot
+
+# Note: this controls the i/j tittle AND other dots via the "tittle" prime.
+# The body shape of i/j is controlled separately and inherited from ss08:
+#   i = "serifed", j = "serifed"
+
+prime = "tittle"
+
+candidates = [
+    "round",   # Iosevka default
+    "square",  # PragmataPro target — square dot above i/j
+]

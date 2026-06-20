@@ -1,0 +1,12 @@
+# Axis: capital R leg
+# SS08 default: "curly-serifless"
+# PragmataPro target: straight leg
+
+prime = "capital-r"
+
+candidates = [
+    "curly-serifless",   # SS08 default
+    "straight-serifless", # PragmataPro target — straight diagonal leg
+    "straight-serifed",
+    "curly-serifed",
+]

@@ -1,0 +1,12 @@
+# Axis: @ at sign
+# SS08 default: "threefold"
+# PragmataPro target: "fourfold" (compact spiral)
+
+prime = "at"
+
+candidates = [
+    "threefold",          # SS08 default
+    "fourfold",           # PragmataPro target — compact 4-wrap spiral
+    "fourfold-solid-inner",
+    "compact",
+]

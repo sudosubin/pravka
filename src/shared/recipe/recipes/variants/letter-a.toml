@@ -1,0 +1,13 @@
+# Axis: lowercase a
+# SS08 default: "double-storey-serifless"
+# PragmataPro target: double-storey with tailed terminal
+
+prime = "a"
+
+candidates = [
+    "double-storey-serifless",    # SS08 default
+    "double-storey-tailed",       # tailed hook at bottom right
+    "double-storey-toothless-corner",
+    "single-storey-serifless",
+    "single-storey-earless-corner-serifless",
+]

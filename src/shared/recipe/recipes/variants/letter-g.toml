@@ -1,0 +1,12 @@
+# Axis: lowercase g
+# SS08 default: "double-storey" (double-storey body, closed bowl)
+# PragmataPro target: double-storey g
+
+prime = "g"
+
+candidates = [
+    "double-storey",             # SS08 default — double-storey, closed
+    "double-storey-open",        # double-storey, open bowl
+    "single-storey-serifless",   # single-storey, bent hook
+    "single-storey-flat-hook-serifless",
+]

@@ -1,0 +1,11 @@
+# Axis: & ampersand
+# SS08 default: "upper-open"
+# PragmataPro target: modern closed Et-form
+
+prime = "ampersand"
+
+candidates = [
+    "upper-open",         # SS08 default
+    "closed",             # closed loop — PragmataPro target
+    "et-toothless-corner",
+]
