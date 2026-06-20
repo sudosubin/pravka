@@ -1,6 +1,11 @@
 import sharp from "sharp";
 import { ssim as ssimJs } from "ssim.js";
-import { clamp255, grayToRgba, loadGray } from "@/shared/util/image.ts";
+import {
+  clamp255,
+  grayToRgba,
+  loadGray,
+  VISUAL_PNG,
+} from "@/shared/util/image.ts";
 
 let ssimBufA: Uint8ClampedArray | null = null;
 let ssimBufB: Uint8ClampedArray | null = null;
@@ -160,4 +165,34 @@ export async function scorePair(
     composite: round6(composite),
     pct_raw: round6(pct_raw),
   };
+}
+
+// Overlay uses raw PNGs so the visualization matches the displayed ref/cand cells.
+// red=ref-only ink, blue=cand-only, black=both, white=neither.
+export async function diffOverlayPng(
+  ref0: string | Buffer,
+  cand0: string | Buffer,
+): Promise<Buffer> {
+  const [ref, cand] = await Promise.all([loadGray(ref0), loadGray(cand0)]);
+  if (ref.w !== cand.w || ref.h !== cand.h) {
+    throw new Error("diffOverlayPng: ref/cand dimensions differ");
+  }
+
+  const buf = Buffer.alloc(ref.w * ref.h * 3);
+  for (let i = 0; i < ref.data.length; i++) {
+    const refInk = (255 - ref.data[i]!) / 255;
+    const ourInk = (255 - cand.data[i]!) / 255;
+    const both = Math.min(refInk, ourInk);
+    const refOnly = Math.max(0, refInk - ourInk);
+    const ourOnly = Math.max(0, ourInk - refInk);
+    const r = 255 - refOnly * 35 - ourOnly * 225 - both * 255;
+    const g = 255 - refOnly * 225 - ourOnly * 225 - both * 255;
+    const b = 255 - refOnly * 225 - ourOnly * 25 - both * 255;
+    buf[i * 3] = clamp255(r);
+    buf[i * 3 + 1] = clamp255(g);
+    buf[i * 3 + 2] = clamp255(b);
+  }
+  return sharp(buf, { raw: { width: ref.w, height: ref.h, channels: 3 } })
+    .png(VISUAL_PNG)
+    .toBuffer();
 }
