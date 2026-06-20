@@ -1,5 +1,9 @@
 import { buildCommand, buildRouteMap } from "@stricli/core";
-import { renderReport, runCharsCompare } from "@/features/compare/index.ts";
+import {
+  buildDocsCompare,
+  renderReport,
+  runCharsCompare,
+} from "@/features/compare/index.ts";
 import { PATHS } from "@/shared/paths.ts";
 
 const reportCmd = buildCommand({
@@ -82,7 +86,55 @@ const charsCmd = buildCommand({
   },
 });
 
+const docsCmd = buildCommand({
+  docs: {
+    brief:
+      "Build committed docs/assets/compare panels (pragmatapro·pravka·diff per sample)",
+  },
+  parameters: {
+    flags: {
+      recipe: {
+        kind: "parsed",
+        parse: String,
+        brief: "Recipe TOML (triggers build)",
+        default: PATHS.bestRecipe,
+      },
+      out: {
+        kind: "parsed",
+        parse: String,
+        brief: "Output directory",
+        default: PATHS.compareDocs,
+      },
+      "font-dir": {
+        kind: "parsed",
+        parse: String,
+        brief: "Use a prebuilt font dir (skip build)",
+        optional: true,
+      },
+      id: {
+        kind: "parsed",
+        parse: String,
+        brief: "Only this sample (e.g. m_all_chars)",
+        optional: true,
+      },
+    },
+  },
+  func: async (flags: {
+    recipe: string;
+    out: string;
+    "font-dir"?: string;
+    id?: string;
+  }) => {
+    await buildDocsCompare({
+      recipe: flags.recipe,
+      out: flags.out,
+      fontDir: flags["font-dir"],
+      id: flags.id,
+    });
+  },
+});
+
 export const compareRoutes = buildRouteMap({
   docs: { brief: "Compare PragmataPro reference vs Pravka (diff images)" },
-  routes: { report: reportCmd, chars: charsCmd },
+  routes: { report: reportCmd, chars: charsCmd, docs: docsCmd },
 });
