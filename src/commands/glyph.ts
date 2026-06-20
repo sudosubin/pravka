@@ -12,6 +12,7 @@ import {
   recipeHash,
   SnapshotCache,
 } from "@/shared/render/snapshot.ts";
+import { coverageReport } from "@/shared/util/codepoints.ts";
 import { parseCodepoints } from "@/shared/util/codepoints-parser.ts";
 import { writeJson } from "@/shared/util/io.ts";
 
@@ -150,6 +151,42 @@ const diffCmd = buildCommand({
   },
 });
 
+const codepointsCmd = buildCommand({
+  docs: {
+    brief:
+      "Report glyph coverage of a font (and intersection with a candidate)",
+  },
+  parameters: {
+    flags: {
+      ref: { kind: "parsed", parse: String, brief: "Reference font (TTF)" },
+      cand: {
+        kind: "parsed",
+        parse: String,
+        brief: "Candidate font (TTF)",
+        optional: true,
+      },
+      out: {
+        kind: "parsed",
+        parse: String,
+        brief: "Output JSON path",
+        default: PATHS.codepointsJson,
+      },
+    },
+  },
+  func(flags: { ref: string; cand?: string; out: string }) {
+    const report = coverageReport(flags.ref, flags.cand);
+    writeJson(flags.out, report);
+    const fmt = (n: number) => n.toLocaleString();
+    if (flags.cand) {
+      console.log(
+        `Intersection: ${fmt(report.intersection_count ?? 0)}  | Ref-only: ${fmt(report.ref_only_count ?? 0)}  | Cand-only: ${fmt(report.cand_only_count ?? 0)}`,
+      );
+    } else {
+      console.log(`Coverage: ${fmt(report.ref_count)} codepoints`);
+    }
+  },
+});
+
 export const glyphRoutes = buildRouteMap({
   docs: {
     brief: "Low-level glyph render / diff / coverage / report primitives",
@@ -157,5 +194,6 @@ export const glyphRoutes = buildRouteMap({
   routes: {
     render: renderCmd,
     diff: diffCmd,
+    codepoints: codepointsCmd,
   },
 });
