@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pravka: font specimen gallery</title>
+<style>body { font-family: -apple-system, monospace; background: #111; color: #ddd; margin: 0; padding: 20px; }
+  h1 { font-size: 16px; color: #aaa; font-weight: normal; margin: 0 0 16px; }
+  h3 { font-size: 13px; color: #ddd; margin: 28px 0 4px; font-weight: normal; }
+  .dims { color: #555; font-size: 11px; margin-left: 6px; }
+  .img-wrap { overflow-x: auto; padding: 4px 0; background: #0a0a0a; border: 1px solid #2a2a2a; }
+  img { display: block; image-rendering: pixelated; width: 100%; height: auto; }
+  .img-wrap.actual img { width: auto; height: auto; }
+  .fit-toggle { display: inline-block; font-size: 11px; color: #5a8; cursor: pointer; margin-left: 12px; user-select: none; }</style>
+<script>document.addEventListener('click', (e) => {
+  const t = e.target;
+  if (t && t.classList && t.classList.contains('fit-toggle')) {
+    const wrap = t.closest('section').querySelector('.img-wrap');
+    wrap.classList.toggle('actual');
+    t.textContent = wrap.classList.contains('actual') ? '[fit to width]' : '[show 1:1]';
+  }
+});</script>
+<h1>Pravka: font specimen gallery</h1>
+<section>
+  <h3>Code Sample <span class="dims">1440×624</span><span class="fit-toggle">[show 1:1]</span></h3>
+  <div class="img-wrap"><img src="code-sample.png" alt="code-sample" loading="lazy"></div>
+</section>
+<section>
+  <h3>Weights & Styles <span class="dims">1360×928</span><span class="fit-toggle">[show 1:1]</span></h3>
+  <div class="img-wrap"><img src="weights.png" alt="weights" loading="lazy"></div>
+</section>
+<section>
+  <h3>Pangrams & Symbols <span class="dims">1360×432</span><span class="fit-toggle">[show 1:1]</span></h3>
+  <div class="img-wrap"><img src="pangram.png" alt="pangram" loading="lazy"></div>
+</section>
+<section>
+  <h3>CJK Integration: Korean · Japanese · Chinese <span class="dims">1440×768</span><span class="fit-toggle">[show 1:1]</span></h3>
+  <div class="img-wrap"><img src="cjk.png" alt="cjk" loading="lazy"></div>
+</section>
