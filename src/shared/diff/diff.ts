@@ -1,0 +1,163 @@
+import sharp from "sharp";
+import { ssim as ssimJs } from "ssim.js";
+import { clamp255, grayToRgba, loadGray } from "@/shared/util/image.ts";
+
+let ssimBufA: Uint8ClampedArray | null = null;
+let ssimBufB: Uint8ClampedArray | null = null;
+let ssimBufSize = 0;
+
+function ssim(X: Float32Array, Y: Float32Array, w: number, h: number): number {
+  if (X.length !== Y.length || X.length !== w * h) {
+    throw new Error("ssim: array shape mismatch");
+  }
+  const n = w * h * 4;
+  if (ssimBufSize !== n) {
+    ssimBufA = new Uint8ClampedArray(n);
+    ssimBufB = new Uint8ClampedArray(n);
+    ssimBufSize = n;
+  }
+  grayToRgba(X, w, h, ssimBufA!);
+  grayToRgba(Y, w, h, ssimBufB!);
+  return ssimJs(
+    { data: ssimBufA!, width: w, height: h },
+    { data: ssimBufB!, width: w, height: h },
+  ).mssim;
+}
+
+const INK_HEIGHT = 48;
+const CANVAS_SIZE = 64;
+
+export interface ScorePair {
+  pct_mismatch: number;
+  l2: number;
+  ssim: number;
+  composite: number;
+  pct_raw: number;
+}
+
+interface InkBbox {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+function inkBbox(
+  data: Float32Array,
+  w: number,
+  h: number,
+  threshold = 200,
+): InkBbox {
+  let top = -1;
+  let bottom = -1;
+  for (let y = 0; y < h; y++) {
+    let hasInk = false;
+    for (let x = 0; x < w; x++)
+      if (data[y * w + x]! < threshold) {
+        hasInk = true;
+        break;
+      }
+    if (hasInk) {
+      if (top === -1) top = y;
+      bottom = y + 1;
+    }
+  }
+  if (top === -1) return { top: 0, bottom: h, left: 0, right: w };
+  let left = -1;
+  let right = -1;
+  for (let x = 0; x < w; x++) {
+    let hasInk = false;
+    for (let y = top; y < bottom; y++)
+      if (data[y * w + x]! < threshold) {
+        hasInk = true;
+        break;
+      }
+    if (hasInk) {
+      if (left === -1) left = x;
+      right = x + 1;
+    }
+  }
+  return { top, bottom, left, right };
+}
+
+async function normalize(
+  arr: Float32Array,
+  w: number,
+  h: number,
+  targetInk: number = INK_HEIGHT,
+  canvas: number = CANVAS_SIZE,
+): Promise<Float32Array> {
+  const { top, bottom, left, right } = inkBbox(arr, w, h);
+  const inkH = Math.max(1, bottom - top);
+  const inkW = Math.max(1, right - left);
+  const scale = Math.min(targetInk / inkH, canvas / inkW);
+  const newH = Math.max(1, Math.round(inkH * scale));
+  const newW = Math.max(1, Math.round(inkW * scale));
+
+  const cropped = Buffer.alloc(inkW * inkH);
+  for (let y = 0; y < inkH; y++)
+    for (let x = 0; x < inkW; x++)
+      cropped[y * inkW + x] = clamp255(arr[(top + y) * w + (left + x)]!);
+
+  const resized = await sharp(cropped, {
+    raw: { width: inkW, height: inkH, channels: 1 },
+  })
+    .resize(newW, newH, { kernel: "lanczos3", fit: "fill" })
+    .raw()
+    .toBuffer();
+
+  const out = new Float32Array(canvas * canvas);
+  out.fill(255);
+  const yOff = Math.max(0, Math.floor((canvas - newH) / 2));
+  const xOff = Math.max(0, Math.floor((canvas - newW) / 2));
+  const pasteH = Math.min(newH, canvas - yOff);
+  const pasteW = Math.min(newW, canvas - xOff);
+  for (let y = 0; y < pasteH; y++)
+    for (let x = 0; x < pasteW; x++)
+      out[(yOff + y) * canvas + (xOff + x)] = resized[y * newW + x]!;
+  return out;
+}
+
+const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
+
+export async function scorePair(
+  refPath: string,
+  candPath: string,
+): Promise<ScorePair> {
+  const [refRaw, candRaw] = await Promise.all([
+    loadGray(refPath),
+    loadGray(candPath),
+  ]);
+  const [ref, cand] = await Promise.all([
+    normalize(refRaw.data, refRaw.w, refRaw.h),
+    normalize(candRaw.data, candRaw.w, candRaw.h),
+  ]);
+
+  let mismatch = 0;
+  let l2sum = 0;
+  for (let i = 0; i < ref.length; i++) {
+    const d = ref[i]! - cand[i]!;
+    if (Math.abs(d) > 8) mismatch++;
+    l2sum += d * d;
+  }
+  const pct_mismatch = mismatch / ref.length;
+  const l2 = Math.sqrt(l2sum) / ref.length / 255;
+  const ssimVal = ssim(ref, cand, CANVAS_SIZE, CANVAS_SIZE);
+  const composite = 0.4 * pct_mismatch + 0.3 * l2 + 0.3 * (1 - ssimVal);
+
+  let pct_raw = 0;
+  if (refRaw.data.length === candRaw.data.length) {
+    let m = 0;
+    for (let i = 0; i < refRaw.data.length; i++)
+      if (Math.abs(refRaw.data[i]! - candRaw.data[i]!) > 8) m++;
+    pct_raw = m / refRaw.data.length;
+  }
+
+  return {
+    pct_mismatch: round6(pct_mismatch),
+    l2: round6(l2),
+    ssim: round6(ssimVal),
+    composite: round6(composite),
+    pct_raw: round6(pct_raw),
+  };
+}
