@@ -1,11 +1,15 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import sharp from "sharp";
 import { ssim as ssimJs } from "ssim.js";
+import { cpHex } from "@/shared/render/snapshot.ts";
 import {
   clamp255,
   grayToRgba,
   loadGray,
   VISUAL_PNG,
 } from "@/shared/util/image.ts";
+import { pMap, writeJson } from "@/shared/util/io.ts";
 
 let ssimBufA: Uint8ClampedArray | null = null;
 let ssimBufB: Uint8ClampedArray | null = null;
@@ -29,6 +33,8 @@ function ssim(X: Float32Array, Y: Float32Array, w: number, h: number): number {
   ).mssim;
 }
 
+const CONCURRENCY = 8;
+
 const INK_HEIGHT = 48;
 const CANVAS_SIZE = 64;
 
@@ -38,6 +44,12 @@ export interface ScorePair {
   ssim: number;
   composite: number;
   pct_raw: number;
+}
+
+export interface ScoreRecord extends ScorePair {
+  overlay: string;
+  ref_png: string;
+  cand_png: string;
 }
 
 interface InkBbox {
@@ -195,4 +207,37 @@ export async function diffOverlayPng(
   return sharp(buf, { raw: { width: ref.w, height: ref.h, channels: 3 } })
     .png(VISUAL_PNG)
     .toBuffer();
+}
+
+export async function runDiff(
+  refPaths: Map<number, string>,
+  candPaths: Map<number, string>,
+  diffsDir: string,
+): Promise<Map<number, ScoreRecord>> {
+  mkdirSync(diffsDir, { recursive: true });
+  const cps = [...refPaths.keys()]
+    .filter((cp) => candPaths.has(cp))
+    .sort((a, b) => a - b);
+
+  const records = await pMap(cps, CONCURRENCY, async (cp) => {
+    const refPath = refPaths.get(cp)!;
+    const candPath = candPaths.get(cp)!;
+    const [score, overlay] = await Promise.all([
+      scorePair(refPath, candPath),
+      diffOverlayPng(refPath, candPath),
+    ]);
+    const hex = cpHex(cp);
+    const overlayPath = join(diffsDir, `${hex}_overlay.png`);
+    writeFileSync(overlayPath, overlay);
+    writeJson(
+      join(diffsDir, `${hex}.json`),
+      { ...score, ref: refPath, cand: candPath },
+      false,
+    );
+    return [
+      cp,
+      { ...score, overlay: overlayPath, ref_png: refPath, cand_png: candPath },
+    ] as const;
+  });
+  return new Map(records);
 }
