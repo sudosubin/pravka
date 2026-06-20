@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildCommand, buildRouteMap } from "@stricli/core";
 import { LIGATION_TOML, VARIANTS_TOML } from "@/shared/build/build.ts";
+import { runDiff } from "@/shared/diff/diff.ts";
 import { PATHS } from "@/shared/paths.ts";
 import { buildOptionMap } from "@/shared/recipe/option-map.ts";
 import { getDesignSection, loadRecipe } from "@/shared/recipe/recipe.ts";
@@ -11,6 +13,7 @@ import {
   SnapshotCache,
 } from "@/shared/render/snapshot.ts";
 import { parseCodepoints } from "@/shared/util/codepoints-parser.ts";
+import { writeJson } from "@/shared/util/io.ts";
 
 const renderCmd = buildCommand({
   docs: { brief: "Render glyphs from a font to cached PNG snapshots" },
@@ -88,11 +91,71 @@ const renderCmd = buildCommand({
   },
 });
 
+const diffCmd = buildCommand({
+  docs: { brief: "Render two fonts and score per-glyph pixel diffs" },
+  parameters: {
+    flags: {
+      ref: { kind: "parsed", parse: String, brief: "Reference font (TTF)" },
+      cand: { kind: "parsed", parse: String, brief: "Candidate font (TTF)" },
+      codepoints: {
+        kind: "parsed",
+        parse: parseCodepoints,
+        brief: "Comma-separated codepoints",
+      },
+      "cache-dir": {
+        kind: "parsed",
+        parse: String,
+        brief: "Snapshot cache directory",
+        default: PATHS.cacheWork,
+      },
+      out: {
+        kind: "parsed",
+        parse: String,
+        brief: "Write scores JSON to this path",
+        optional: true,
+      },
+    },
+  },
+  async func(flags: {
+    ref: string;
+    cand: string;
+    codepoints: number[];
+    "cache-dir": string;
+    out?: string;
+  }) {
+    const cache = new SnapshotCache(flags["cache-dir"]);
+    const [refPaths, candPaths] = await Promise.all([
+      renderAndCache(flags.ref, flags.codepoints, cache),
+      renderAndCache(flags.cand, flags.codepoints, cache),
+    ]);
+    const results = await runDiff(
+      refPaths,
+      candPaths,
+      join(flags["cache-dir"], "diffs", "cli"),
+    );
+    for (const cp of [...results.keys()].sort((a, b) => a - b)) {
+      const s = results.get(cp)!;
+      console.log(
+        `${cpLabel(cp)}  composite=${s.composite.toFixed(4)}  ssim=${s.ssim.toFixed(4)}`,
+      );
+    }
+    if (flags.out) {
+      writeJson(
+        flags.out,
+        Object.fromEntries(
+          [...results].map(([cp, v]) => [cpLabel(cp).slice(2), v]),
+        ),
+      );
+    }
+  },
+});
+
 export const glyphRoutes = buildRouteMap({
   docs: {
     brief: "Low-level glyph render / diff / coverage / report primitives",
   },
   routes: {
     render: renderCmd,
+    diff: diffCmd,
   },
 });
