@@ -3,13 +3,30 @@ import { join } from "node:path";
 
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { sumBy } from "es-toolkit";
+import sharp from "sharp";
 
 import type { Token } from "@/features/showcase/tokenize.ts";
+import { VISUAL_PNG } from "@/shared/util/image.ts";
 
 export interface CanvasLine {
   tokens: Token[];
   fontSpec?: string;
   advance?: number;
+}
+
+export interface CanvasRenderOpts {
+  defaultFont: string;
+  bg: string;
+  width: number;
+  paddingX: number;
+  paddingY: number;
+  lineHeight: number;
+  upscale: number;
+  outputScale: number;
+  horizontalGrid?: boolean;
+  // Overrides the auto-calculated mid-gap offset when the layout has mixed line heights.
+  // Absolute offset from (paddingY + n * lineHeight) to the desired grid line position.
+  horizontalGridOffset?: number;
 }
 
 export function measureFontMetrics(fontStr: string): {
@@ -69,4 +86,206 @@ const EAW_RANGES = [
 
 export function isEastAsianWide(cp: number): boolean {
   return EAW_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
+}
+
+interface RowBand {
+  yTop: number;
+  yBot: number;
+  // Columns whose vertical line bisects a Wide (EAW) glyph on this row (its midpoint); skipped so a
+  // CJK glyph isn't split. Boundary lines between glyphs and all non-Wide rows stay drawn.
+  skipCols: Set<number>;
+}
+
+// gridYs are the horizontal grid lines (one below each row). When one-per-row-gap, skip bands are
+// bounded by them so a broken vertical line resumes exactly on the horizontal; else use leading.
+function collectRowBands(
+  lines: CanvasLine[],
+  paddingY: number,
+  defaultLeading: number,
+  logH: number,
+  gridYs: number[],
+): RowBand[] {
+  const aligned = gridYs.length === lines.length - 1;
+  const bands: RowBand[] = [];
+  let yEdge = paddingY;
+  lines.forEach((line, i) => {
+    const leading = line.advance ?? defaultLeading;
+    // Skip only the line bisecting each Wide (2-cell) glyph: a glyph at cell `cell` spans
+    // [cell, cell+1], so its midpoint line is column cell+1. Boundary lines between glyphs stay.
+    const skipCols = new Set<number>();
+    let cell = 0;
+    for (const token of line.tokens) {
+      for (const char of token.text) {
+        if (isEastAsianWide(char.codePointAt(0) ?? 0)) {
+          skipCols.add(cell + 1);
+          cell += 2;
+        } else {
+          cell += 1;
+        }
+      }
+    }
+    const yTop = aligned ? (i === 0 ? 0 : gridYs[i - 1]!) : yEdge;
+    const yBot = aligned
+      ? i === lines.length - 1
+        ? logH
+        : gridYs[i]!
+      : yEdge + leading;
+    bands.push({ yTop, yBot, skipCols });
+    yEdge += leading;
+  });
+  if (!aligned && bands.length) {
+    bands[0]!.yTop = 0;
+    bands.at(-1)!.yBot = logH;
+  }
+  return bands;
+}
+
+// Luminance of a hex color (#rrggbb), 0-255.
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return (r! * 299 + g! * 587 + b! * 114) / 1000;
+}
+
+export async function renderCanvasLines(
+  lines: CanvasLine[],
+  opts: CanvasRenderOpts,
+): Promise<Buffer> {
+  const scale = opts.upscale * opts.outputScale;
+  const logH = blockLogicalHeight(lines, opts.lineHeight, opts.paddingY);
+
+  const canvas = createCanvas(opts.width * scale, logH * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = opts.bg;
+  ctx.fillRect(0, 0, opts.width, logH);
+
+  // --- Grid overlay: vertical columns (0.5em) + horizontal rows (lineHeight) ---
+  ctx.font = opts.defaultFont;
+  const halfEmWidth = ctx.measureText("A").width;
+  const dark = luminance(opts.bg) > 128; // light background → dark grid lines
+  const gridHalf = dark ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.07)";
+  const gridFull = dark ? "rgba(0,0,0,0.14)" : "rgba(255,255,255,0.14)";
+
+  ctx.lineWidth = 0.5;
+
+  // Horizontal grid line positions, in the mid-gap below each row. Computed first so the
+  // vertical-line skip bands can be bounded by them (see collectRowBands).
+  const m = ctx.measureText("Ag");
+  const autoGapOffset =
+    (opts.lineHeight + m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) /
+    2;
+  const gapOffset = opts.horizontalGridOffset ?? autoGapOffset;
+  const gridYs: number[] = [];
+  if (opts.horizontalGrid !== false) {
+    for (
+      let n = 0;
+      opts.paddingY + (n + 1) * opts.lineHeight < logH - opts.paddingY;
+      n++
+    ) {
+      gridYs.push(opts.paddingY + n * opts.lineHeight + gapOffset);
+    }
+  }
+
+  // Vertical lines at every halfEmWidth. A line is broken only across the row bands where it
+  // falls inside a Wide (CJK) text run; on every other row the column stays drawn.
+  const rowBands = collectRowBands(
+    lines,
+    opts.paddingY,
+    opts.lineHeight,
+    logH,
+    gridYs,
+  );
+  const drawSeg = (gx: number, yTop: number, yBot: number) => {
+    ctx.beginPath();
+    ctx.moveTo(gx, yTop);
+    ctx.lineTo(gx, yBot);
+    ctx.stroke();
+  };
+  let col = 0;
+  for (
+    let gx = opts.paddingX;
+    gx <= opts.width - opts.paddingX + 0.5;
+    gx += halfEmWidth, col++
+  ) {
+    ctx.strokeStyle = col % 2 === 0 ? gridFull : gridHalf;
+    let segTop: number | null = null;
+    for (const band of rowBands) {
+      if (band.skipCols.has(col)) {
+        if (segTop !== null) {
+          drawSeg(gx, segTop, band.yTop);
+          segTop = null;
+        }
+      } else if (segTop === null) {
+        segTop = band.yTop;
+      }
+    }
+    if (segTop !== null) drawSeg(gx, segTop, logH);
+  }
+
+  ctx.strokeStyle = gridFull;
+  for (const gy of gridYs) {
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(opts.width, gy);
+    ctx.stroke();
+  }
+  // ---
+
+  ctx.textBaseline = "alphabetic";
+
+  let baselineY = opts.paddingY;
+  for (const line of lines) {
+    const fontSpec = line.fontSpec ?? opts.defaultFont;
+    ctx.font = fontSpec;
+
+    // Use max(Latin, CJK) ascent so CJK glyphs don't bleed above the line.
+    const latinAscent = ctx.measureText("Ag").actualBoundingBoxAscent;
+    const cjkAscent = ctx.measureText("あ").actualBoundingBoxAscent;
+    const ascent = Math.max(latinAscent, cjkAscent);
+    baselineY += ascent;
+
+    // halfEmWidth = advance of one Latin character (Pravka = 0.5em).
+    // East Asian Wide chars get exactly 2× this, mirroring terminal EAW allocation.
+    const halfEmWidth = ctx.measureText("A").width;
+
+    let x = opts.paddingX;
+    for (const token of line.tokens) {
+      if (!token.text) continue;
+      ctx.font = fontSpec;
+      ctx.fillStyle = token.color;
+
+      // Iterate code-point by code-point to apply EAW cell allocation.
+      for (const char of token.text) {
+        const cp = char.codePointAt(0) ?? 0;
+        if (isEastAsianWide(cp)) {
+          // 2-column cell: center the glyph (advance may be < 2× for 920u fonts).
+          const cellWidth = halfEmWidth * 2;
+          const glyphWidth = ctx.measureText(char).width;
+          const offset = (cellWidth - glyphWidth) / 2;
+          ctx.fillText(char, x + offset, baselineY);
+          x += cellWidth;
+        } else {
+          ctx.fillText(char, x, baselineY);
+          x += ctx.measureText(char).width;
+        }
+      }
+    }
+
+    const leading = line.advance ?? opts.lineHeight;
+    baselineY += leading - ascent;
+  }
+
+  const buf = canvas.toBuffer("image/png");
+  const pipe =
+    opts.upscale <= 1
+      ? sharp(buf)
+      : sharp(buf).resize(
+          opts.width * opts.outputScale,
+          logH * opts.outputScale,
+          {
+            kernel: "lanczos3",
+          },
+        );
+  return pipe.png(VISUAL_PNG).toBuffer();
 }
