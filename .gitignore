@@ -1,0 +1,6 @@
+dist/
+vendor/
+node_modules/
+*.tsbuildinfo
+src/shared/recipe/recipes/_cand-*.toml
+src/shared/recipe/recipes/current-best.toml.bak
