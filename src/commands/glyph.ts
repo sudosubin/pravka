@@ -1,8 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { buildCommand, buildRouteMap } from "@stricli/core";
+import { maxBy } from "es-toolkit";
 import { LIGATION_TOML, VARIANTS_TOML } from "@/shared/build/build.ts";
 import { runDiff } from "@/shared/diff/diff.ts";
+import { buildReport } from "@/shared/diff/report.ts";
 import { PATHS } from "@/shared/paths.ts";
 import { buildOptionMap } from "@/shared/recipe/option-map.ts";
 import { getDesignSection, loadRecipe } from "@/shared/recipe/recipe.ts";
@@ -187,6 +189,89 @@ const codepointsCmd = buildCommand({
   },
 });
 
+const reportCmd = buildCommand({
+  docs: { brief: "Build the interactive glyph-diff HTML report from scores" },
+  parameters: {
+    flags: {
+      scores: {
+        kind: "parsed",
+        parse: String,
+        brief: "Scores JSON (auto-finds latest if omitted)",
+        optional: true,
+      },
+      codepoints: {
+        kind: "parsed",
+        parse: String,
+        brief: "Coverage JSON for known-gap section",
+        optional: true,
+      },
+      "cache-dir": {
+        kind: "parsed",
+        parse: String,
+        brief: "Render cache for inline PNGs",
+        default: PATHS.cacheWork,
+      },
+      out: {
+        kind: "parsed",
+        parse: String,
+        brief: "Output report directory",
+        default: PATHS.glyphReport,
+      },
+      top: {
+        kind: "parsed",
+        parse: Number,
+        brief: "Top N worst glyphs shown initially",
+        default: "500",
+      },
+      "recipe-hash": {
+        kind: "parsed",
+        parse: String,
+        brief: "Recipe hash metadata",
+        optional: true,
+      },
+      "font-hash": {
+        kind: "parsed",
+        parse: String,
+        brief: "Font hash metadata",
+        optional: true,
+      },
+    },
+  },
+  func(flags: {
+    scores?: string;
+    codepoints?: string;
+    "cache-dir": string;
+    out: string;
+    top: number;
+    "recipe-hash"?: string;
+    "font-hash"?: string;
+  }) {
+    let scoresPath = flags.scores;
+    if (!scoresPath) {
+      const dir = PATHS.cacheBuilds;
+      if (existsSync(dir)) {
+        const files = readdirSync(dir)
+          .filter((f) => f.endsWith(".score.json"))
+          .map((f) => join(dir, f));
+        scoresPath = maxBy(files, (f) => statSync(f).mtimeMs) ?? scoresPath;
+      }
+    }
+    let cpPath = flags.codepoints;
+    if (!cpPath && existsSync(PATHS.codepointsJson))
+      cpPath = PATHS.codepointsJson;
+
+    buildReport({
+      scoresPath,
+      codepointsPath: cpPath,
+      cacheDir: flags["cache-dir"],
+      outDir: flags.out,
+      topN: flags.top,
+      recipeHashStr: flags["recipe-hash"],
+      fontHashStr: flags["font-hash"],
+    });
+  },
+});
+
 export const glyphRoutes = buildRouteMap({
   docs: {
     brief: "Low-level glyph render / diff / coverage / report primitives",
@@ -195,5 +280,6 @@ export const glyphRoutes = buildRouteMap({
     render: renderCmd,
     diff: diffCmd,
     codepoints: codepointsCmd,
+    report: reportCmd,
   },
 });
