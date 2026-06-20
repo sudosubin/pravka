@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -7,8 +8,10 @@ import {
   renameSync,
   rmSync,
 } from "node:fs";
+import { availableParallelism } from "node:os";
 import { join } from "node:path";
-import { VENDOR_DIR as VENDOR_ROOT } from "@/shared/paths.ts";
+import { DIST_DIR, VENDOR_DIR as VENDOR_ROOT } from "@/shared/paths.ts";
+import { recipeHash } from "@/shared/render/snapshot.ts";
 import { downloadTo } from "@/shared/source.ts";
 
 const IOSEVKA_VERSION = "34.4.0";
@@ -77,4 +80,64 @@ export function findRegularTtf(fontDir: string): string | null {
       return join(fontDir, name);
   }
   return all[0] ? join(fontDir, all[0]) : null;
+}
+
+export function buildFont(recipePath: string): string | null {
+  if (!existsSync(VENDOR_DIR)) {
+    console.error(
+      `Iosevka source not found at ${VENDOR_DIR}\nRun: pravka build setup`,
+    );
+    return null;
+  }
+  if (!existsSync(join(VENDOR_DIR, "node_modules"))) {
+    console.error(`npm dependencies not installed.\nRun: pravka build setup`);
+    return null;
+  }
+
+  const rhash = recipeHash(recipePath);
+  const cacheDir = join(DIST_DIR, "fonts", rhash);
+  if (
+    existsSync(cacheDir) &&
+    readdirSync(cacheDir).some((f) => f.endsWith(".ttf"))
+  ) {
+    return cacheDir;
+  }
+
+  copyFileSync(recipePath, join(VENDOR_DIR, "private-build-plans.toml"));
+
+  const ncpu = availableParallelism();
+  const result = spawnSync(
+    "npm",
+    [
+      "run",
+      "build",
+      "--no-update-notifier",
+      "--",
+      "--targets=ttf-unhinted::Iosevkapravka",
+      `--jCmd=${ncpu}`,
+      "--verbosity=9",
+    ],
+    { cwd: VENDOR_DIR, stdio: "inherit" },
+  );
+  if (result.status !== 0) {
+    console.error("Iosevka build failed");
+    return null;
+  }
+
+  const dist = join(VENDOR_DIR, "dist", "Iosevkapravka");
+  const candidate = [join(dist, "TTF-Unhinted"), join(dist, "TTF")].find(
+    (d) => existsSync(d) && readdirSync(d).some((f) => f.endsWith(".ttf")),
+  );
+  if (!candidate) {
+    console.error(`No TTF output found under ${dist}`);
+    return null;
+  }
+
+  mkdirSync(cacheDir, { recursive: true });
+  for (const f of readdirSync(candidate)) {
+    if (f.endsWith(".ttf")) {
+      copyFileSync(join(candidate, f), join(cacheDir, f));
+    }
+  }
+  return cacheDir;
 }
