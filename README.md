@@ -66,8 +66,18 @@ Built TTFs include Regular, Semibold, Bold, and Black weights, each in Upright a
 ## Packaging a release
 
 ```sh
-bun src/cli.ts release build            # → dist/release/{Pravka,PravkaNerdFontMono}/{ttf,otf,woff2}/ + zips + SHA256SUMS
+bun src/cli.ts release build            # one-shot: cleans dist/release/ and runs every stage
+                                        # → {Pravka,PravkaNerdFontMono}/{ttf,otf,woff2}/ + zips + SHA256SUMS
 ```
+
+`release build` runs all stages in order; each stage is also a standalone subcommand for incremental rebuilds:
+
+| Stage | Purpose |
+|-------|---------|
+| `release ttf` | Build each family's TTFs (plain = rename, nerd = FontForge patch) |
+| `release otf` | Convert the built TTFs to OTF (FontForge) |
+| `release woff2` | Compress the built TTFs to WOFF2 |
+| `release package` | Zip each family directory and write `SHA256SUMS` |
 
 Produces two families (**Pravka** and **Pravka Nerd Font Mono**, `--mono` patched), each in **TTF, OTF, WOFF2**, plus versioned zips and `SHA256SUMS`. Useful flags: `--family plain|nerd|both`, `--formats ttf,otf,woff2`, `--font-dir <prebuilt>`, `--version <v>` (defaults to `package.json`).
 
