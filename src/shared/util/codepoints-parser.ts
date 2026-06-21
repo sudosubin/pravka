@@ -1,5 +1,5 @@
 /** Parse a comma-separated codepoint spec ("U+0067,61,...") into codepoints. */
-export function parseCodepoints(spec: string): number[] {
+export function parseCps(spec: string): number[] {
   return spec
     .split(",")
     .map((t) => t.trim())

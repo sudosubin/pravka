@@ -15,7 +15,7 @@ import {
   SnapshotCache,
 } from "@/shared/render/snapshot.ts";
 import { coverageReport } from "@/shared/util/codepoints.ts";
-import { parseCodepoints } from "@/shared/util/codepoints-parser.ts";
+import { parseCps } from "@/shared/util/codepoints-parser.ts";
 import { writeJson } from "@/shared/util/io.ts";
 
 const renderCmd = buildCommand({
@@ -25,7 +25,7 @@ const renderCmd = buildCommand({
       font: { kind: "parsed", parse: String, brief: "Font file (TTF)" },
       codepoints: {
         kind: "parsed",
-        parse: parseCodepoints,
+        parse: parseCps,
         brief: "Comma-separated codepoints (U+0067,61)",
         optional: true,
       },
@@ -102,7 +102,7 @@ const diffCmd = buildCommand({
       cand: { kind: "parsed", parse: String, brief: "Candidate font (TTF)" },
       codepoints: {
         kind: "parsed",
-        parse: parseCodepoints,
+        parse: parseCps,
         brief: "Comma-separated codepoints",
       },
       "cache-dir": {
