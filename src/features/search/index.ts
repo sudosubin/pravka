@@ -126,12 +126,12 @@ async function searchOneAxis(
     using tmp = tempDir(`pravka-cand-${axisName}-`);
     const tmpPath = join(tmp.path, "candidate.toml");
     writeRecipeWithDesign(baseRecipe, trialDesign, tmpPath);
-    const storePath = buildFont(tmpPath);
-    if (!storePath) {
+    const fontDir = buildFont(tmpPath);
+    if (!fontDir) {
       console.log(`    [${candValue}] build failed, skipping`);
       continue;
     }
-    const fontPath = findRegularTtf(storePath);
+    const fontPath = findRegularTtf(fontDir);
     if (!fontPath) {
       console.log(`    [${candValue}] no TTF found`);
       continue;
@@ -188,9 +188,9 @@ export async function runSearch(opts: RunSearchOpts): Promise<void> {
     intersectionCps = JSON.parse(readFileSync(cpFile, "utf-8")) as number[];
   } else {
     console.log("Computing codepoint intersection (building base font first)…");
-    const storePath = buildFont(baseRecipePath);
-    if (!storePath) throw new Error("Base font build failed");
-    const fontPath = findRegularTtf(storePath);
+    const fontDir = buildFont(baseRecipePath);
+    if (!fontDir) throw new Error("Base font build failed");
+    const fontPath = findRegularTtf(fontDir);
     if (!fontPath) throw new Error("No TTF in base build");
     const refCps = new Set(coveredCps()); // PragmataPro reference, from the All_chars chart
     const candCps = getCmap(fontPath);
@@ -246,12 +246,12 @@ async function finalize(
   cache: SnapshotCache,
   cacheDir: string,
 ): Promise<void> {
-  const storePath = buildFont(BEST_RECIPE);
-  if (!storePath) {
+  const fontDir = buildFont(BEST_RECIPE);
+  if (!fontDir) {
     console.log("  [finalize] Final build failed");
     return;
   }
-  const fontPath = findRegularTtf(storePath);
+  const fontPath = findRegularTtf(fontDir);
   if (!fontPath) {
     console.log("  [finalize] No TTF in final build");
     return;

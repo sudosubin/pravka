@@ -24,10 +24,10 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
   // Local-only regression artifact (dist/ is gitignored), not a committed doc asset.
   const outPath = opts.out ?? PATHS.cjkGridPng;
   const SIZE = opts.size ?? 28;
-  const FONT_DIR = opts.fontDir ?? join(FONTS_DIR, recipeHash(BASE_RECIPE));
+  const fontDir = opts.fontDir ?? join(FONTS_DIR, recipeHash(BASE_RECIPE));
   const HALF = SIZE / 2;
 
-  await setupFonts(FONT_DIR);
+  await setupFonts(fontDir);
 
   const GROUPS: { label: string; chars: string; expectedCells: number }[] = [
     {
