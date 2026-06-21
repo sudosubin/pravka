@@ -23,7 +23,19 @@ bun src/cli.ts build setup
 
 `vendor/` is gitignored; this step must be run after every fresh clone.
 
-All tooling lives in one CLI: `bun src/cli.ts <command>` (or `bun link` → `pravka`). Run `bun src/cli.ts --help` for the full command tree.
+All tooling lives in one CLI: `bun src/cli.ts <command>` (or `bun link` → `pravka`). `--help` works at every level — root (`pravka --help`), route (`pravka release --help`), and subcommand (`pravka release ttf --help`) — for the full command tree and per-command flags.
+
+### Flag conventions
+
+These flags recur across commands with consistent meaning:
+
+| Flag | Meaning |
+|------|---------|
+| `--recipe <toml>` | Recipe TOML to build from (defaults to `current-best.toml`); triggers a build |
+| `--font-dir <dir>` | Use a prebuilt font directory and skip the build |
+| `--out <dir>` | Output directory (or path) for the command's artifacts |
+| `--family plain\|nerd\|both` | Which font family/families to produce (default `both`) |
+| `--formats ttf,otf,woff2` | Comma list of output formats (default `ttf,otf,woff2`) |
 
 ## Building the font
 
@@ -54,12 +66,21 @@ Everything runs through `bun src/cli.ts <command>` (or `pravka <command>` after 
 | `pravka glyph report` | Build the HTML diff dashboard |
 | `pravka glyph codepoints --ref <ttf>` | Coverage report |
 | `pravka showcase specimen` | Generate `docs/assets/*.png` |
-| `pravka compare report` | Local HTML comparison report (samples + blocks) |
-| `pravka compare chars --range <lo-hi>` | Per-glyph diff over a codepoint range vs All_chars |
+| `pravka compare report` | Local HTML report from cached snapshots (reference \| Pravka \| diff per sample + block) |
+| `pravka compare chars --range <lo-hi>` | Per-glyph diff over a codepoint range vs `All_chars`, font-free |
+| `pravka compare docs` | Rebuild the committed `docs/assets/compare` panels (pragmatapro·pravka·diff) |
 | `pravka fetch all` | Download fsd.it reference images |
-| `pravka release build` | Package TTF/OTF/WOFF2 (plain + Nerd Font Mono) → `dist/release/` + zips + SHA256SUMS |
+| `pravka release build` | One-shot: run all release stages → `dist/release/` + zips + SHA256SUMS |
+| `pravka release ttf` | Stage: build each family's TTFs (plain = rename, nerd = FontForge patch) |
+| `pravka release otf` | Stage: convert built TTFs to OTF (FontForge) |
+| `pravka release woff2` | Stage: compress built TTFs to WOFF2 |
+| `pravka release package` | Stage: zip each family directory and write SHA256SUMS |
 
-**`release build` tooling:** TTF/WOFF2 need only Bun + the `wawoff2` dep. **OTF and the Nerd Font family additionally use [`fontforge`](https://fontforge.org)** (the Nerd patcher is a FontForge script), provided by the dev flake, so run inside `nix develop`. The Nerd Fonts `FontPatcher` is downloaded and cached under `vendor/nerd-fonts/`. Use `--family plain --formats ttf,woff2` to build without FontForge.
+The three `compare` subcommands serve different purposes: **`report`** renders a local HTML dashboard from the cached snapshots; **`chars`** scores a per-glyph diff over a codepoint range against `All_chars` with no font file required; **`docs`** rebuilds the comparison panels committed under `docs/assets/compare`.
+
+`release build` runs every stage in order (ttf → otf/woff2 → package) after cleaning the output dir; the four stage subcommands let you rebuild incrementally.
+
+**Release tooling:** TTF/WOFF2 need only Bun + the `wawoff2` dep. **OTF and the Nerd Font family additionally use [`fontforge`](https://fontforge.org)** (the Nerd patcher is a FontForge script), provided by the dev flake, so run inside `nix develop`. The Nerd Fonts `FontPatcher` is downloaded and cached under `vendor/nerd-fonts/`. Use `--family plain --formats ttf,woff2` to build without FontForge.
 
 ## Recipe and axis system
 
