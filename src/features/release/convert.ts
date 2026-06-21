@@ -103,6 +103,62 @@ function ttfToOtf(ttf: string, otf: string): void {
   );
   if (r.status !== 0)
     throw new Error(`fontforge OTF conversion failed for ${ttf}`);
+  setPostIsFixedPitch(otf);
+}
+
+function tableRecord(buf: Buffer, tag: string): number {
+  const numTables = buf.readUInt16BE(4);
+  for (let i = 0; i < numTables; i++) {
+    const record = 12 + i * 16;
+    if (buf.toString("ascii", record, record + 4) === tag) return record;
+  }
+  throw new Error(`Missing ${tag} table`);
+}
+
+function tableChecksum(buf: Buffer, offset: number, length: number): number {
+  let sum = 0;
+  const paddedLength = Math.ceil(length / 4) * 4;
+  for (let i = 0; i < paddedLength; i += 4) {
+    let word = 0;
+    for (let j = 0; j < 4; j++) {
+      const index = offset + i + j;
+      word = (word << 8) | (index < offset + length ? buf[index]! : 0);
+    }
+    sum = (sum + word) >>> 0;
+  }
+  return sum;
+}
+
+function fontChecksum(buf: Buffer): number {
+  let sum = 0;
+  const paddedLength = Math.ceil(buf.length / 4) * 4;
+  for (let i = 0; i < paddedLength; i += 4) {
+    let word = 0;
+    for (let j = 0; j < 4; j++) {
+      const index = i + j;
+      word = (word << 8) | (index < buf.length ? buf[index]! : 0);
+    }
+    sum = (sum + word) >>> 0;
+  }
+  return sum;
+}
+
+function setPostIsFixedPitch(otf: string): void {
+  const buf = readFileSync(otf);
+  const postRecord = tableRecord(buf, "post");
+  const postOffset = buf.readUInt32BE(postRecord + 8);
+  const postLength = buf.readUInt32BE(postRecord + 12);
+  buf.writeUInt32BE(1, postOffset + 12);
+  buf.writeUInt32BE(tableChecksum(buf, postOffset, postLength), postRecord + 4);
+
+  const headRecord = tableRecord(buf, "head");
+  const headOffset = buf.readUInt32BE(headRecord + 8);
+  const headLength = buf.readUInt32BE(headRecord + 12);
+  buf.writeUInt32BE(0, headOffset + 8);
+  buf.writeUInt32BE(tableChecksum(buf, headOffset, headLength), headRecord + 4);
+  buf.writeUInt32BE((0xb1b0afba - fontChecksum(buf)) >>> 0, headOffset + 8);
+
+  writeFileSync(otf, buf);
 }
 
 async function ttfToWoff2(ttf: string, woff2: string): Promise<void> {
