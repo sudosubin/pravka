@@ -1,5 +1,6 @@
 import sharp from "sharp";
 
+import { REFERENCE_GEOMETRY } from "@/features/compare/geometry.ts";
 import { SOURCES } from "@/shared/source.ts";
 
 /**
@@ -8,17 +9,17 @@ import { SOURCES } from "@/shared/source.ts";
  * U+2700+) stay uneven, so pitch is measured per row and glyphs dropped on the reference's ink.
  */
 export const IMAGE = SOURCES.monoComparison.path;
-export const GRID_X0 = 1710; // column 0 glyph center (px)
-export const CELL_W = 35; // nominal column pitch (px)
-export const ROW_PITCH = 39.2; // nominal row pitch (px)
-export const COLS = 16;
-export const DISPLAY_SCALE = 2;
-export const MIN_INK_PIXELS = 3;
-export const SCAN_LEFT = 1500; // fixed left origin for all pixel scans (absolute px)
-export const SCAN_W = 880; // scan width: covers the label gutter through the widest symbol row's glyphs
-export const CROP_MARGIN = 26; // left/right whitespace kept around the actual ink, so nothing is clipped
-const LABEL_X1 = 1552; // scan just the "U+" prefix of each row label, narrow enough to exclude the
-const LABEL_X2 = 1612; // indented "▼ Section" titles, so a section break shows as a clean row gap
+export const GRID_X0 = REFERENCE_GEOMETRY.blocks.gridX0;
+export const CELL_W = REFERENCE_GEOMETRY.blocks.cellW;
+export const ROW_PITCH = REFERENCE_GEOMETRY.blocks.rowPitch;
+export const COLS = REFERENCE_GEOMETRY.blocks.cols;
+export const DISPLAY_SCALE = REFERENCE_GEOMETRY.blocks.displayScale;
+export const MIN_INK_PIXELS = REFERENCE_GEOMETRY.blocks.minInkPixels;
+export const SCAN_LEFT = REFERENCE_GEOMETRY.blocks.scanLeft;
+export const SCAN_W = REFERENCE_GEOMETRY.blocks.scanW;
+export const CROP_MARGIN = REFERENCE_GEOMETRY.blocks.cropMargin;
+const LABEL_X1 = REFERENCE_GEOMETRY.blocks.labelX1;
+const LABEL_X2 = REFERENCE_GEOMETRY.blocks.labelX2;
 
 export const DOC_BLOCKS: {
   id: string;

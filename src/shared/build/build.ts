@@ -7,9 +7,10 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { availableParallelism } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { DIST_DIR, VENDOR_DIR as VENDOR_ROOT } from "@/shared/paths.ts";
 import { recipeHash } from "@/shared/render/snapshot.ts";
 import { downloadTo } from "@/shared/source.ts";
@@ -96,48 +97,53 @@ export function buildFont(recipePath: string): string | null {
 
   const rhash = recipeHash(recipePath);
   const cacheDir = join(DIST_DIR, "fonts", rhash);
-  if (
+  const cached =
     existsSync(cacheDir) &&
-    readdirSync(cacheDir).some((f) => f.endsWith(".ttf"))
-  ) {
-    return cacheDir;
-  }
+    readdirSync(cacheDir).some((f) => f.endsWith(".ttf"));
 
-  copyFileSync(recipePath, join(VENDOR_DIR, "private-build-plans.toml"));
+  if (!cached) {
+    copyFileSync(recipePath, join(VENDOR_DIR, "private-build-plans.toml"));
 
-  const ncpu = availableParallelism();
-  const result = spawnSync(
-    "npm",
-    [
-      "run",
-      "build",
-      "--no-update-notifier",
-      "--",
-      "--targets=ttf-unhinted::Iosevkapravka",
-      `--jCmd=${ncpu}`,
-      "--verbosity=9",
-    ],
-    { cwd: VENDOR_DIR, stdio: "inherit" },
-  );
-  if (result.status !== 0) {
-    console.error("Iosevka build failed");
-    return null;
-  }
+    const ncpu = availableParallelism();
+    const result = spawnSync(
+      "npm",
+      [
+        "run",
+        "build",
+        "--no-update-notifier",
+        "--",
+        "--targets=ttf-unhinted::Iosevkapravka",
+        `--jCmd=${ncpu}`,
+        "--verbosity=9",
+      ],
+      { cwd: VENDOR_DIR, stdio: "inherit" },
+    );
+    if (result.status !== 0) {
+      console.error("Iosevka build failed");
+      return null;
+    }
 
-  const dist = join(VENDOR_DIR, "dist", "Iosevkapravka");
-  const candidate = [join(dist, "TTF-Unhinted"), join(dist, "TTF")].find(
-    (d) => existsSync(d) && readdirSync(d).some((f) => f.endsWith(".ttf")),
-  );
-  if (!candidate) {
-    console.error(`No TTF output found under ${dist}`);
-    return null;
-  }
+    const dist = join(VENDOR_DIR, "dist", "Iosevkapravka");
+    const candidate = [join(dist, "TTF-Unhinted"), join(dist, "TTF")].find(
+      (d) => existsSync(d) && readdirSync(d).some((f) => f.endsWith(".ttf")),
+    );
+    if (!candidate) {
+      console.error(`No TTF output found under ${dist}`);
+      return null;
+    }
 
-  mkdirSync(cacheDir, { recursive: true });
-  for (const f of readdirSync(candidate)) {
-    if (f.endsWith(".ttf")) {
-      copyFileSync(join(candidate, f), join(cacheDir, f));
+    mkdirSync(cacheDir, { recursive: true });
+    for (const f of readdirSync(candidate)) {
+      if (f.endsWith(".ttf")) {
+        copyFileSync(join(candidate, f), join(cacheDir, f));
+      }
     }
   }
+
+  // Map the opaque content-addressed cache dir back to its source recipe.
+  writeFileSync(
+    join(cacheDir, "recipe.txt"),
+    `${recipePath}\n${basename(recipePath)}\n`,
+  );
   return cacheDir;
 }

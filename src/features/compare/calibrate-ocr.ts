@@ -1,11 +1,15 @@
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 
+import { REFERENCE_GEOMETRY } from "@/features/compare/geometry.ts";
+
 // Label column geometry (where "U+XXXX" sits) and OCR sampling.
-const LABEL_X0 = 150;
-const LABEL_XEND = 275;
-const NORM_W = 10;
-const NORM_H = 16;
-const CLUSTER_MAX_HAMMING = 14;
+const {
+  labelX0: LABEL_X0,
+  labelXEnd: LABEL_XEND,
+  normW: NORM_W,
+  normH: NORM_H,
+  clusterMaxHamming: CLUSTER_MAX_HAMMING,
+} = REFERENCE_GEOMETRY.calibrate;
 
 export interface Ctx {
   width: number;
