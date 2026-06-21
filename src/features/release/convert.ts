@@ -65,6 +65,32 @@ const FULLWIDTH_FORMS: Array<[number, number]> = [
   [0x20a9, 0xffe6],
 ];
 
+const MONO_GLYPH_ALIASES: Array<[number, number]> = [
+  [0x22a2, 0x27dd],
+  [0x22a3, 0x27de],
+  [0x2190, 0x27f5],
+  [0x2192, 0x27f6],
+  [0x2194, 0x27f7],
+  [0x21d0, 0x27f8],
+  [0x21d2, 0x27f9],
+  [0x21d4, 0x27fa],
+  [0x21a4, 0x27fb],
+  [0x21a6, 0x27fc],
+  [0x2906, 0x27fd],
+  [0x2907, 0x27fe],
+  [0x21dd, 0x27ff],
+  [0x21dc, 0x2b33],
+  [0x21c4, 0x1f8d0],
+  [0x21cc, 0x1f8d1],
+  [0x21cc, 0x1f8d2],
+  [0x21cc, 0x1f8d3],
+  [0x21cb, 0x1f8d4],
+  [0x21cb, 0x1f8d5],
+  [0x219b, 0x1f8d6],
+  [0x21fb, 0x1f8d7],
+  [0x21ad, 0x1f8d8],
+];
+
 /** Download + extract the Nerd Fonts FontPatcher (cached); returns the dir holding `font-patcher`. */
 async function ensurePatcher(force?: boolean): Promise<string> {
   const dir = join("vendor", "nerd-fonts", NERD_FONTS_VERSION);
@@ -111,18 +137,24 @@ function hex(cp: number): string {
   return cp.toString(16).toUpperCase().padStart(4, "0");
 }
 
-function fillFullwidthForms(ttf: string): void {
-  const copies = FULLWIDTH_FORMS.map(
-    ([source, target]) =>
-      `Select(0u${hex(source)}); Copy(); Select(0u${hex(target)}); Paste(); SetWidth(500);`,
-  ).join(" ");
+function copyGlyphs(codes: Array<[number, number]>): string {
+  return codes
+    .map(
+      ([source, target]) =>
+        `Select(0u${hex(source)}); Copy(); Select(0u${hex(target)}); Paste(); SetWidth(500);`,
+    )
+    .join(" ");
+}
+
+function patchReleaseGlyphs(ttf: string): void {
+  const copies = `${copyGlyphs(FULLWIDTH_FORMS)} ${copyGlyphs(MONO_GLYPH_ALIASES)}`;
   const r = spawnSync(
     "fontforge",
     ["-quiet", "-lang=ff", "-c", `Open($1); ${copies} Generate($1)`, ttf],
     { stdio: "inherit" },
   );
   if (r.status !== 0)
-    throw new Error(`fontforge fullwidth form patch failed for ${ttf}`);
+    throw new Error(`fontforge release glyph patch failed for ${ttf}`);
   setPostIsFixedPitch(ttf);
 }
 
@@ -228,7 +260,7 @@ export async function buildFamilyTtf(
       const dest = join(ttfDir, `Pravka-${style}.ttf`);
       if (force || !existsSync(dest)) {
         copyFileSync(join(fontDir, f), dest);
-        fillFullwidthForms(dest);
+        patchReleaseGlyphs(dest);
       }
     }
     return ttfDir;
@@ -251,7 +283,7 @@ export async function buildFamilyTtf(
         join(ttfDir, `PravkaNerdFontMono-${fixed}.ttf`),
       );
   }
-  for (const f of listTtf(ttfDir)) fillFullwidthForms(join(ttfDir, f));
+  for (const f of listTtf(ttfDir)) patchReleaseGlyphs(join(ttfDir, f));
   return ttfDir;
 }
 
