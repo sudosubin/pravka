@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { createCanvas, type SKRSContext2D } from "@napi-rs/canvas";
 import sharp from "sharp";
-
+import { REFERENCE_GEOMETRY } from "@/features/compare/geometry.ts";
 import { diffOverlayPng } from "@/shared/diff/diff.ts";
 import { ensureSource, SOURCES } from "@/shared/source.ts";
 import {
@@ -20,17 +20,19 @@ import { VISUAL_PNG } from "@/shared/util/image.ts";
  * U+2700+) stay uneven, so pitch is measured per row and glyphs dropped on the reference's ink.
  */
 const IMAGE = SOURCES.monoComparison.path;
-const GRID_X0 = 1710; // column 0 glyph center (px)
-const CELL_W = 35; // nominal column pitch (px)
-const ROW_PITCH = 39.2; // nominal row pitch (px)
-const COLS = 16;
-const DISPLAY_SCALE = 2;
-const MIN_INK_PIXELS = 3;
-const SCAN_LEFT = 1500; // fixed left origin for all pixel scans (absolute px)
-const SCAN_W = 880; // scan width: covers the label gutter through the widest symbol row's glyphs
-const CROP_MARGIN = 26; // left/right whitespace kept around the actual ink, so nothing is clipped
-const LABEL_X1 = 1552; // scan just the "U+" prefix of each row label, narrow enough to exclude the
-const LABEL_X2 = 1612; // indented "▼ Section" titles, so a section break shows as a clean row gap
+const {
+  gridX0,
+  cellW,
+  rowPitch,
+  cols,
+  displayScale,
+  minInkPixels,
+  scanLeft,
+  scanW,
+  cropMargin,
+  labelX1,
+  labelX2,
+} = REFERENCE_GEOMETRY.blocks;
 
 export const DOC_BLOCKS: {
   id: string;
@@ -125,7 +127,7 @@ interface Gray {
 /** Grayscale the Mono specimen at the fixed scan x-window, `top`..`top+height`. */
 async function scanGray(top: number, height: number): Promise<Gray> {
   const r = await sharp(IMAGE)
-    .extract({ left: SCAN_LEFT, top, width: SCAN_W, height })
+    .extract({ left: scanLeft, top, width: scanW, height })
     .flatten({ background: "#ffffff" })
     .grayscale()
     .raw()
@@ -135,8 +137,8 @@ async function scanGray(top: number, height: number): Promise<Gray> {
 
 /** Center y (absolute, `baseTop`-relative input) of each "U+XXXX" row label; section titles excluded. */
 function detectLabelRows(g: Gray, baseTop: number): number[] {
-  const lx1 = LABEL_X1 - SCAN_LEFT,
-    lx2 = LABEL_X2 - SCAN_LEFT;
+  const lx1 = labelX1 - scanLeft,
+    lx2 = labelX2 - scanLeft;
   const ys: number[] = [];
   let runStart = -1;
   for (let y = 0; y <= g.h; y++) {
@@ -164,12 +166,12 @@ function blockRows(
   cpStart: number,
   cpEnd: number,
 ): { cp: number; y: number }[] {
-  const startIdx = labelYs.findIndex((y) => y > anchorY - ROW_PITCH * 0.6);
+  const startIdx = labelYs.findIndex((y) => y > anchorY - rowPitch * 0.6);
   const out: { cp: number; y: number }[] = [];
   if (startIdx < 0) return out;
   for (let i = startIdx; i < labelYs.length; i++) {
-    if (i > startIdx && labelYs[i]! - labelYs[i - 1]! > ROW_PITCH * 1.5) break;
-    const cp = cpStart + (i - startIdx) * COLS;
+    if (i > startIdx && labelYs[i]! - labelYs[i - 1]! > rowPitch * 1.5) break;
+    const cp = cpStart + (i - startIdx) * cols;
     if (cp > cpEnd) break;
     out.push({ cp, y: labelYs[i]! });
   }
@@ -198,7 +200,7 @@ function inkBox(
         if (l < 0 || x < l) l = x;
         if (x > r) r = x;
       }
-  if (ink < MIN_INK_PIXELS) return null;
+  if (ink < minInkPixels) return null;
   return { cx: (l + r) / 2, cy: (t + b) / 2 };
 }
 
@@ -228,7 +230,7 @@ function measureRowPitch(
         w += prof[xx]!;
         sum += prof[xx]! * xx;
       }
-      if (w >= MIN_INK_PIXELS) centers.push(sum / w);
+      if (w >= minInkPixels) centers.push(sum / w);
       s = -1;
     }
   }
@@ -236,8 +238,8 @@ function measureRowPitch(
   for (let i = 1; i < centers.length; i++)
     gaps.push(centers[i]! - centers[i - 1]!);
   return median(
-    gaps.filter((gap) => gap >= CELL_W * 0.6 && gap <= CELL_W * 1.5),
-    CELL_W,
+    gaps.filter((gap) => gap >= cellW * 0.6 && gap <= cellW * 1.5),
+    cellW,
   );
 }
 
@@ -274,9 +276,9 @@ export async function renderBlockPanels(opts: {
   const font = loadFont(fontPath);
 
   // Locate the block's rows from the always-present "U+XXXX" labels.
-  const maxRows = (cpEnd - cpStart) / COLS + 1;
-  const scanTop = Math.round(anchorY - ROW_PITCH);
-  const scanH = Math.round((maxRows + 1) * ROW_PITCH);
+  const maxRows = (cpEnd - cpStart) / cols + 1;
+  const scanTop = Math.round(anchorY - rowPitch);
+  const scanH = Math.round((maxRows + 1) * rowPitch);
   const rows = blockRows(
     detectLabelRows(await scanGray(scanTop, scanH), scanTop),
     anchorY,
@@ -290,12 +292,12 @@ export async function renderBlockPanels(opts: {
 
   // Vertical band, tight to the detected rows (≈0.5 pitch margin clears the glyphs but stops short of
   // the adjacent section titles).
-  const bandTop = Math.round(rows[0]!.y - ROW_PITCH * 0.5);
-  const bandH = Math.round(rows.at(-1)!.y + ROW_PITCH * 0.5) - bandTop;
-  const S = DISPLAY_SCALE;
+  const bandTop = Math.round(rows[0]!.y - rowPitch * 0.5);
+  const bandH = Math.round(rows.at(-1)!.y + rowPitch * 0.5) - bandTop;
+  const S = displayScale;
 
-  // The band gray over the full generous x-range (origin SCAN_LEFT): used for ink detection and glyph
-  // placement. Coordinates below are relative to SCAN_LEFT.
+  // The band gray over the full generous x-range (origin scanLeft): used for ink detection and glyph
+  // placement. Coordinates below are relative to scanLeft.
   const band = await scanGray(bandTop, bandH);
 
   // Horizontal crop follows the actual ink with a symmetric margin, so wide/overflowing glyphs in any
@@ -314,8 +316,8 @@ export async function renderBlockPanels(opts: {
         break;
       }
   }
-  const cropLeft = SCAN_LEFT + Math.max(0, leftInk - CROP_MARGIN);
-  const cropRight = SCAN_LEFT + Math.min(band.w, rightInk + CROP_MARGIN + 1);
+  const cropLeft = scanLeft + Math.max(0, leftInk - cropMargin);
+  const cropRight = scanLeft + Math.min(band.w, rightInk + cropMargin + 1);
   const bandW = cropRight - cropLeft;
   const outW = bandW * S;
   const outH = bandH * S;
@@ -334,16 +336,16 @@ export async function renderBlockPanels(opts: {
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, outW, outH);
-  const glyphFs = ROW_PITCH * S;
-  const grid0 = GRID_X0 - SCAN_LEFT; // column-0 center, relative to the gray origin (SCAN_LEFT)
-  const glyphLeft = Math.max(0, Math.round(grid0 - CELL_W)); // glyph area, past the label gutter
+  const glyphFs = rowPitch * S;
+  const grid0 = gridX0 - scanLeft; // column-0 center, relative to the gray origin (scanLeft)
+  const glyphLeft = Math.max(0, Math.round(grid0 - cellW)); // glyph area, past the label gutter
 
   for (const { cp, y } of rows) {
     const cy = y - bandTop;
-    const y1 = Math.round(cy - ROW_PITCH / 2),
-      y2 = Math.round(cy + ROW_PITCH / 2);
+    const y1 = Math.round(cy - rowPitch / 2),
+      y2 = Math.round(cy + rowPitch / 2);
     const pitch = measureRowPitch(band, glyphLeft, y1, y2);
-    for (let col = 0; col < COLS; col++) {
+    for (let col = 0; col < cols; col++) {
       const cpc = cp + col;
       if (cpc > cpEnd) break;
       const cellCx = grid0 + col * pitch;
@@ -360,7 +362,7 @@ export async function renderBlockPanels(opts: {
       drawGlyphInkCentered(
         ctx,
         glyph,
-        (SCAN_LEFT + ink.cx - cropLeft) * S,
+        (scanLeft + ink.cx - cropLeft) * S,
         ink.cy * S,
         glyphFs,
       );
@@ -368,10 +370,7 @@ export async function renderBlockPanels(opts: {
   }
 
   // Copy the reference label gutter so row labels match exactly and the diff isolates the glyphs.
-  const gutterW = Math.max(
-    1,
-    Math.round((GRID_X0 - CELL_W / 2 - cropLeft) * S),
-  );
+  const gutterW = Math.max(1, Math.round((gridX0 - cellW / 2 - cropLeft) * S));
   const gutter = await sharp(refPng)
     .extract({ left: 0, top: 0, width: gutterW, height: outH })
     .png()

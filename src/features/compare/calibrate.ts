@@ -9,16 +9,13 @@ import { dirname, join } from "node:path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { maxBy, minBy, range } from "es-toolkit";
 
+import { REFERENCE_GEOMETRY } from "@/features/compare/geometry.ts";
 import { ensureSource, SOURCES } from "@/shared/source.ts";
 
 const OUT_PATH = "src/shared/reference/coverage.json";
 
-// Label column geometry (where "U+XXXX" sits) and OCR sampling.
-const LABEL_X0 = 150;
-const LABEL_XEND = 275;
-const NORM_W = 10;
-const NORM_H = 16;
-const CLUSTER_MAX_HAMMING = 14;
+const { labelX0, labelXEnd, normW, normH, clusterMaxHamming } =
+  REFERENCE_GEOMETRY.calibrate;
 
 interface Ctx {
   width: number;
@@ -49,7 +46,7 @@ function detectRows(ctx: Ctx): [number, number][] {
     const d = ctx.strip(y0, h);
     for (let yy = 0; yy < h; yy++) {
       let s = 0;
-      for (let x = LABEL_X0; x < LABEL_XEND; x++) {
+      for (let x = labelX0; x < labelXEnd; x++) {
         const i = (yy * W + x) * 4;
         if ((d[i]! + d[i + 1]! + d[i + 2]!) / 3 < 128) s++;
       }
@@ -80,8 +77,8 @@ function rowClusters(
   const W = ctx.width;
   const h = b - a + 1;
   const d = ctx.strip(a, h);
-  const colDark = new Int32Array(LABEL_XEND);
-  for (let x = 0; x < LABEL_XEND; x++) {
+  const colDark = new Int32Array(labelXEnd);
+  for (let x = 0; x < labelXEnd; x++) {
     let s = 0;
     for (let y = 0; y < h; y++) {
       const i = (y * W + x) * 4;
@@ -91,7 +88,7 @@ function rowClusters(
   }
   const segs: [number, number][] = [];
   let st = -1;
-  for (let x = LABEL_X0 - 6; x < LABEL_XEND; x++) {
+  for (let x = labelX0 - 6; x < labelXEnd; x++) {
     if (colDark[x]! > 0) {
       if (st < 0) st = x;
     } else if (st >= 0) {
@@ -99,7 +96,7 @@ function rowClusters(
       st = -1;
     }
   }
-  if (st >= 0) segs.push([st, LABEL_XEND - 1]);
+  if (st >= 0) segs.push([st, labelXEnd - 1]);
 
   const out: number[] = [];
   for (const [x0, x1] of segs) {
@@ -113,7 +110,7 @@ function rowClusters(
         best = i;
       }
     }
-    if (best < 0 || bd > CLUSTER_MAX_HAMMING) {
+    if (best < 0 || bd > clusterMaxHamming) {
       centroids.push({ g, sample: { a, x0, x1 } });
       best = centroids.length - 1;
     }
@@ -139,14 +136,14 @@ function normGlyph(
         if (y > y1) y1 = y;
       }
     }
-  const g = new Uint8Array(NORM_W * NORM_H);
+  const g = new Uint8Array(normW * normH);
   if (y1 < y0) return g;
-  for (let gy = 0; gy < NORM_H; gy++)
-    for (let gx = 0; gx < NORM_W; gx++) {
-      const px = x0 + Math.round(((gx + 0.5) / NORM_W) * (x1 - x0));
-      const py = y0 + Math.round(((gy + 0.5) / NORM_H) * (y1 - y0));
+  for (let gy = 0; gy < normH; gy++)
+    for (let gx = 0; gx < normW; gx++) {
+      const px = x0 + Math.round(((gx + 0.5) / normW) * (x1 - x0));
+      const py = y0 + Math.round(((gy + 0.5) / normH) * (y1 - y0));
       const i = (py * W + px) * 4;
-      g[gy * NORM_W + gx] = (d[i]! + d[i + 1]! + d[i + 2]!) / 3 < 128 ? 1 : 0;
+      g[gy * normW + gx] = (d[i]! + d[i + 1]! + d[i + 2]!) / 3 < 128 ? 1 : 0;
     }
   return g;
 }
