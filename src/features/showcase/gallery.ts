@@ -28,7 +28,7 @@ export async function buildSpecimenGallery(
   if (!fontDir)
     throw new Error("Font build failed. Run `pravka build font` first.");
 
-  setupFonts(fontDir);
+  await setupFonts(fontDir);
   mkdirSync(outDir, { recursive: true });
 
   const toRun = opts.id ? SPECIMENS.filter((s) => s.id === opts.id) : SPECIMENS;

@@ -27,7 +27,7 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
   const FONT_DIR = opts.fontDir ?? join(FONTS_DIR, recipeHash(BASE_RECIPE));
   const HALF = SIZE / 2;
 
-  setupFonts(FONT_DIR);
+  await setupFonts(FONT_DIR);
 
   const GROUPS: { label: string; chars: string; expectedCells: number }[] = [
     {

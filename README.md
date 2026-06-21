@@ -92,7 +92,7 @@ bun src/cli.ts showcase specimen      # writes docs/assets/showcase/*.png
 bun src/cli.ts compare docs           # writes docs/assets/compare/**/{pragmatapro,pravka,diff}.png
 ```
 
-CJK text (Korean, Japanese, Chinese) is rendered via [Noto Sans Mono CJK](https://github.com/notofonts/noto-cjk) as a fallback alongside Pravka. The font must be present at `vendor/noto-cjk/NotoSansMonoCJK-VF.otf.ttc` (overridable via `PRAVKA_CJK_FONT`).
+CJK text (Korean, Japanese, Chinese) is rendered via [Noto Sans Mono CJK](https://github.com/notofonts/noto-cjk) as a fallback alongside Pravka. The font (Variable OTC, pinned to tag `Sans2.004`) is downloaded and cached automatically under `vendor/noto-cjk/`; set `PRAVKA_CJK_FONT` to use a local file instead.
 
 ## License
 

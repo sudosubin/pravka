@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
-import { FSD_DIR } from "@/shared/paths.ts";
+import { FSD_DIR, VENDOR_DIR } from "@/shared/paths.ts";
 
 export interface Source {
   url: string;
@@ -38,6 +38,20 @@ export async function downloadTo(
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, Buffer.from(await res.arrayBuffer()));
   return path;
+}
+
+// Noto Sans Mono CJK (Variable OTC) is the CJK fallback for specimen rendering; pinned to a release
+// tag for reproducibility and cached under vendor/ (gitignored).
+const NOTO_CJK_TAG = "Sans2.004";
+const NOTO_CJK_URL = `https://raw.githubusercontent.com/notofonts/noto-cjk/${NOTO_CJK_TAG}/Sans/Variable/OTC/NotoSansMonoCJK-VF.otf.ttc`;
+
+/** Download + cache the Noto Sans Mono CJK fallback font; returns its local path. */
+export function ensureCjkFont(opts: { force?: boolean } = {}): Promise<string> {
+  return downloadTo(
+    NOTO_CJK_URL,
+    join(VENDOR_DIR, "noto-cjk", "NotoSansMonoCJK-VF.otf.ttc"),
+    opts,
+  );
 }
 
 /** Ensure a registered source image is cached locally; returns its path. */

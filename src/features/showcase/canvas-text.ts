@@ -6,6 +6,7 @@ import { sumBy } from "es-toolkit";
 import sharp from "sharp";
 
 import type { Token } from "@/features/showcase/tokenize.ts";
+import { ensureCjkFont } from "@/shared/source.ts";
 import { VISUAL_PNG } from "@/shared/util/image.ts";
 
 export interface CanvasLine {
@@ -43,18 +44,17 @@ export function measureFontMetrics(fontStr: string): {
   };
 }
 
-const CJK_TTC =
-  process.env.PRAVKA_CJK_FONT ??
-  "vendor/noto-cjk/NotoSansMonoCJK-VF.otf.ttc";
-
 let registered = false;
 
-export function setupFonts(fontDir: string): void {
+export async function setupFonts(fontDir: string): Promise<void> {
   if (registered) return;
   for (const f of readdirSync(fontDir)) {
     if (f.endsWith(".ttf")) GlobalFonts.registerFromPath(join(fontDir, f));
   }
-  if (existsSync(CJK_TTC)) GlobalFonts.registerFromPath(CJK_TTC);
+  // CJK fallback: explicit override, else the cached Noto download (skipped if offline).
+  const cjk =
+    process.env.PRAVKA_CJK_FONT ?? (await ensureCjkFont().catch(() => null));
+  if (cjk && existsSync(cjk)) GlobalFonts.registerFromPath(cjk);
   registered = true;
 }
 
