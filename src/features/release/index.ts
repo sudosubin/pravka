@@ -3,14 +3,13 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism, tmpdir } from "node:os";
+import { availableParallelism } from "node:os";
 import { join, relative } from "node:path";
 import { compress as woff2Compress } from "wawoff2";
 import { buildFont } from "@/shared/build/build.ts";
@@ -144,7 +143,7 @@ function listTtf(dir: string): string[] {
 }
 
 /** Build the family's TTFs into <work>/<FAMILY_DIR>/ttf (plain = rename, nerd = patch). */
-async function buildFamilyTtf(
+export async function buildFamilyTtf(
   fam: Family,
   fontDir: string,
   work: string,
@@ -187,7 +186,7 @@ async function buildFamilyTtf(
   return ttfDir;
 }
 
-async function deriveFormats(
+export async function deriveFormats(
   ttfDir: string,
   work: string,
   fam: Family,
@@ -220,60 +219,93 @@ function listFilesRec(dir: string): string[] {
   );
 }
 
-export async function buildRelease(opts: ReleaseOpts = {}): Promise<void> {
-  const recipe = opts.recipe ?? PATHS.bestRecipe;
-  const out = opts.out ?? PATHS.release;
-  const version = opts.version ?? pkgVersion();
-  const formats = (opts.formats ?? "ttf,otf,woff2")
+function parseFamilies(family?: string): Family[] {
+  return family === "plain"
+    ? ["plain"]
+    : family === "nerd"
+      ? ["nerd"]
+      : ["plain", "nerd"];
+}
+
+function parseFormats(formats?: string): Format[] {
+  return (formats ?? "ttf,otf,woff2")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean) as Format[];
-  const families: Family[] =
-    opts.family === "plain"
-      ? ["plain"]
-      : opts.family === "nerd"
-        ? ["nerd"]
-        : ["plain", "nerd"];
+}
 
-  const fontDir = opts.fontDir ?? buildFont(recipe);
-  if (!fontDir)
-    throw new Error("Font build failed. Run `pravka build font` first.");
-  if (readdirSync(fontDir).filter((f) => f.endsWith(".ttf")).length === 0) {
-    throw new Error(`No .ttf files in ${fontDir}`);
-  }
-
-  const needFontforge = formats.includes("otf") || families.includes("nerd");
-  if (needFontforge && !hasTool("fontforge")) {
+function requireFontforge(): void {
+  if (!hasTool("fontforge")) {
     throw new Error(
       "fontforge not found on PATH; required for OTF and Nerd Font output.\n" +
         "It is provided by the dev flake; run inside `nix develop` (or otherwise put fontforge on PATH).\n" +
         "Plain TTF/WOFF2 build without fontforge: --family plain --formats ttf,woff2",
     );
   }
+}
 
-  // Release intermediates are built fresh each run in a temp dir (removed at the end).
-  const work = mkdtempSync(join(tmpdir(), "pravka-release-"));
+/** Resolve the Iosevka TTF source dir (prebuilt --font-dir, or a cache-hit `buildFont`). */
+function resolveFontDir(opts: { fontDir?: string; recipe?: string }): string {
+  const fontDir = opts.fontDir ?? buildFont(opts.recipe ?? PATHS.bestRecipe);
+  if (!fontDir)
+    throw new Error("Font build failed. Run `pravka build font` first.");
+  if (readdirSync(fontDir).filter((f) => f.endsWith(".ttf")).length === 0)
+    throw new Error(`No .ttf files in ${fontDir}`);
+  return fontDir;
+}
 
+export interface StageOpts {
+  family?: string;
+  recipe?: string;
+  fontDir?: string;
+  out?: string;
+  force?: boolean;
+}
+
+/** Stage: build each family's TTFs (plain = rename, nerd = patch) into <out>/<Family>/ttf. */
+export async function releaseTtf(opts: StageOpts = {}): Promise<void> {
+  const out = opts.out ?? PATHS.release;
+  const families = parseFamilies(opts.family);
+  if (families.includes("nerd")) requireFontforge();
+  const fontDir = resolveFontDir(opts);
   for (const fam of families) {
-    console.log(`\n=== ${FAMILY_DIR[fam]} ===`);
-    const ttfDir = await buildFamilyTtf(fam, fontDir, work, opts.force);
-    await deriveFormats(ttfDir, work, fam, formats, opts.force);
+    console.log(`\n=== ${FAMILY_DIR[fam]} ttf ===`);
+    await buildFamilyTtf(fam, fontDir, out, opts.force);
   }
+}
 
-  // Assemble dist/ from the work tree (only requested formats), then zip + checksums.
-  rmSync(out, { recursive: true, force: true });
+/** Stage: derive one format (otf | woff2) from each family's already-built TTFs. */
+export async function releaseDerive(
+  fmt: Format,
+  opts: { family?: string; out?: string; force?: boolean } = {},
+): Promise<void> {
+  const out = opts.out ?? PATHS.release;
+  const families = parseFamilies(opts.family);
+  if (fmt === "otf") requireFontforge();
   for (const fam of families) {
-    for (const fmt of formats) {
-      const src = join(work, FAMILY_DIR[fam], fmt);
-      if (!existsSync(src)) continue;
-      const dst = join(out, FAMILY_DIR[fam], fmt);
-      mkdirSync(dst, { recursive: true });
-      for (const f of readdirSync(src))
-        copyFileSync(join(src, f), join(dst, f));
-    }
+    const ttfDir = join(out, FAMILY_DIR[fam], "ttf");
+    if (listTtf(ttfDir).length === 0)
+      throw new Error(
+        `No TTFs at ${ttfDir}; run \`pravka release ttf\` first.`,
+      );
+    console.log(`\n=== ${FAMILY_DIR[fam]} ${fmt} ===`);
+    await deriveFormats(ttfDir, out, fam, [fmt], opts.force);
   }
+}
+
+/** Stage: zip each family directory and write SHA256SUMS over the whole release tree. */
+export function packageRelease(
+  opts: { version?: string; family?: string; out?: string } = {},
+): void {
+  const out = opts.out ?? PATHS.release;
+  const version = opts.version ?? pkgVersion();
+  const families = parseFamilies(opts.family);
 
   for (const fam of families) {
+    if (!existsSync(join(out, FAMILY_DIR[fam])))
+      throw new Error(
+        `Missing ${join(out, FAMILY_DIR[fam])}; run the ttf/otf/woff2 stages first.`,
+      );
     const zip = `${FAMILY_DIR[fam]}-${version}.zip`;
     rmSync(join(out, zip), { force: true });
     const r = spawnSync("zip", ["-rq", zip, FAMILY_DIR[fam]], {
@@ -292,9 +324,25 @@ export async function buildRelease(opts: ReleaseOpts = {}): Promise<void> {
     )
     .join("\n");
   writeFileSync(join(out, "SHA256SUMS"), `${sums}\n`);
-  rmSync(work, { recursive: true, force: true });
 
   console.log(`\nRelease ${version} → ${out}/`);
   for (const fam of families)
-    console.log(`  ${FAMILY_DIR[fam]}-${version}.zip  (${formats.join(", ")})`);
+    console.log(`  ${FAMILY_DIR[fam]}-${version}.zip`);
+}
+
+/** One-shot: clean the release dir and run every stage (ttf → formats → package). */
+export async function buildRelease(opts: ReleaseOpts = {}): Promise<void> {
+  const out = opts.out ?? PATHS.release;
+  const families = parseFamilies(opts.family);
+  const formats = parseFormats(opts.formats);
+  if (families.includes("nerd") || formats.includes("otf")) requireFontforge();
+  const fontDir = resolveFontDir(opts);
+
+  rmSync(out, { recursive: true, force: true });
+  for (const fam of families) {
+    console.log(`\n=== ${FAMILY_DIR[fam]} ===`);
+    const ttfDir = await buildFamilyTtf(fam, fontDir, out, opts.force);
+    await deriveFormats(ttfDir, out, fam, formats, opts.force);
+  }
+  packageRelease({ out, version: opts.version, family: opts.family });
 }

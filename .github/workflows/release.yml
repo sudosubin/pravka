@@ -32,12 +32,27 @@ jobs:
       - name: Set up Iosevka source
         run: bun src/cli.ts build setup
 
-      - name: Build release artifacts
+      - name: Build Iosevka font
+        run: bun src/cli.ts build font
+
+      - name: Build plain TTF
+        run: bun src/cli.ts release ttf --family plain
+
+      - name: Patch Nerd Font
+        run: bun src/cli.ts release ttf --family nerd
+
+      - name: Convert OTF
+        run: bun src/cli.ts release otf
+
+      - name: Build WOFF2
+        run: bun src/cli.ts release woff2
+
+      - name: Package and checksums
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            bun src/cli.ts release build --version "${GITHUB_REF_NAME#v}"
+            bun src/cli.ts release package --version "${GITHUB_REF_NAME#v}"
           else
-            bun src/cli.ts release build
+            bun src/cli.ts release package
           fi
 
       - uses: actions/upload-artifact@v7
