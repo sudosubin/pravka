@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { DOC_BLOCKS, renderBlockPanels } from "@/features/compare/blocks.ts";
+import { DOC_BLOCKS } from "@/features/compare/block-scan.ts";
+import { renderBlockPanels } from "@/features/compare/blocks.ts";
 import { type Panel, renderIndexHtml } from "@/features/compare/html.ts";
 import { renderSamplePanels } from "@/features/compare/sample-panels.ts";
 import { SAMPLES } from "@/features/compare/samples.ts";
