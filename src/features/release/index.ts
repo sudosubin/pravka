@@ -21,29 +21,29 @@ import { pMap } from "@/shared/util/io.ts";
 const NERD_FONTS_VERSION = "3.4.0";
 const PATCHER_URL = `https://github.com/ryanoasis/nerd-fonts/releases/download/v${NERD_FONTS_VERSION}/FontPatcher.zip`;
 
-// Iosevka output stem (after the "Iosevkapravka-" prefix) → release style token.
-const STYLE_BY_STEM: Record<string, string> = {
-  normalregular: "Regular",
-  normalregularItalic: "Italic",
-  normalsemibold: "Semibold",
-  normalsemiboldItalic: "SemiboldItalic",
-  normalbold: "Bold",
-  normalboldItalic: "BoldItalic",
-  normalblack: "Black",
-  normalblackItalic: "BlackItalic",
-};
-
-// font-patcher derives weight tokens from Iosevka's internal weight names (Heavy/SemiBold);
-// normalize them to the recipe-key tokens so the Nerd filenames match the plain family.
-const NERD_STYLE_FIX: Record<string, string> = {
-  SemiBold: "Semibold",
-  SemiBoldItalic: "SemiboldItalic",
-  Heavy: "Black",
-  HeavyItalic: "BlackItalic",
-};
-
 type Family = "plain" | "nerd";
 type Format = "ttf" | "otf" | "woff2";
+
+// Each style maps to its Iosevka output stem (after the "Iosevkapravka-" prefix) and,
+// when font-patcher's weight token (from Iosevka's internal Heavy/SemiBold names)
+// differs from the style token, the patcher alias to normalize back to the style.
+const STYLES: Record<string, { stem: string; nerdAlias?: string }> = {
+  Regular: { stem: "normalregular" },
+  Italic: { stem: "normalregularItalic" },
+  Semibold: { stem: "normalsemibold", nerdAlias: "SemiBold" },
+  SemiboldItalic: { stem: "normalsemiboldItalic", nerdAlias: "SemiBoldItalic" },
+  Bold: { stem: "normalbold" },
+  BoldItalic: { stem: "normalboldItalic" },
+  Black: { stem: "normalblack", nerdAlias: "Heavy" },
+  BlackItalic: { stem: "normalblackItalic", nerdAlias: "HeavyItalic" },
+};
+
+const STYLE_BY_STEM: Record<string, string> = {};
+const STYLE_BY_NERD_ALIAS: Record<string, string> = {};
+for (const [style, { stem, nerdAlias }] of Object.entries(STYLES)) {
+  STYLE_BY_STEM[stem] = style;
+  if (nerdAlias) STYLE_BY_NERD_ALIAS[nerdAlias] = style;
+}
 
 // Release-family directory names; the Nerd family name is what font-patcher --mono emits
 // (derived from the font's internal name "Pravka" → "Pravka Nerd Font Mono").
@@ -176,7 +176,7 @@ export async function buildFamilyTtf(
   // Normalize Heavy/SemiBold → Black/Semibold so Nerd filenames match the plain family.
   for (const f of listTtf(ttfDir)) {
     const m = f.match(/^PravkaNerdFontMono-(.+)\.ttf$/);
-    const fixed = m && NERD_STYLE_FIX[m[1]!];
+    const fixed = m && STYLE_BY_NERD_ALIAS[m[1]!];
     if (fixed)
       renameSync(
         join(ttfDir, f),
