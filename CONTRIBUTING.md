@@ -25,6 +25,29 @@ bun src/cli.ts build setup
 
 All tooling lives in one CLI: `bun src/cli.ts <command>` (or `bun link` → `pravka`). Run `bun src/cli.ts --help` for the full command tree.
 
+## Project layout
+
+`dist/` and `vendor/` are gitignored scratch directories, recreated on demand; nothing under them is committed.
+
+`dist/` — build outputs and caches:
+
+| Path | Contents |
+|------|----------|
+| `dist/cache/work` | Transient working files during a build |
+| `dist/cache/builds` | Intermediate build artifacts |
+| `dist/fonts/<recipeHash>` | Content-addressed TTF cache, one dir per recipe hash. Each holds the built TTFs plus a `recipe.txt` mapping the opaque hash back to its source recipe |
+| `dist/release` | Packaged release artifacts (TTF/OTF/WOFF2 + zips + SHA256SUMS) |
+| `dist/reports/*` | Generated reports: `chars`, `compare`, `latest` (glyph diff), `codepoints.json`, `cjk-grid-regression.png` |
+
+`vendor/` — downloaded third-party sources:
+
+| Path | Contents |
+|------|----------|
+| `vendor/iosevka-<ver>` | Iosevka source checkout used to compile the font |
+| `vendor/nerd-fonts` | Cached Nerd Fonts `FontPatcher` |
+| `vendor/fsd` | fsd.it PragmataPro reference images |
+| `vendor/noto-cjk` | Noto CJK fonts for CJK comparison |
+
 ## Building the font
 
 ```sh
