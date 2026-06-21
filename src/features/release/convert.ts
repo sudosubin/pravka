@@ -3,15 +3,19 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { availableParallelism } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { join } from "node:path";
 import { compress as woff2Compress } from "wawoff2";
+import patchReleaseFontScript from "@/features/release/patch-release-font.py" with {
+  type: "text",
+};
 import { downloadTo } from "@/shared/source.ts";
 import { pMap } from "@/shared/util/io.ts";
 
@@ -50,46 +54,6 @@ export const FAMILY_DIR: Record<Family, string> = {
 };
 
 const NCPU = Math.max(1, availableParallelism() - 1);
-
-const FULLWIDTH_FORMS: Array<[number, number]> = [
-  ...Array.from(
-    { length: 0x7e - 0x21 + 1 },
-    (_, i) => [0x21 + i, 0xff01 + i] as [number, number],
-  ),
-  [0x00a2, 0xffe0],
-  [0x00a3, 0xffe1],
-  [0x00ac, 0xffe2],
-  [0x00af, 0xffe3],
-  [0x00a6, 0xffe4],
-  [0x00a5, 0xffe5],
-  [0x20a9, 0xffe6],
-];
-
-const MONO_GLYPH_ALIASES: Array<[number, number]> = [
-  [0x22a2, 0x27dd],
-  [0x22a3, 0x27de],
-  [0x2190, 0x27f5],
-  [0x2192, 0x27f6],
-  [0x2194, 0x27f7],
-  [0x21d0, 0x27f8],
-  [0x21d2, 0x27f9],
-  [0x21d4, 0x27fa],
-  [0x21a4, 0x27fb],
-  [0x21a6, 0x27fc],
-  [0x2906, 0x27fd],
-  [0x2907, 0x27fe],
-  [0x21dd, 0x27ff],
-  [0x21dc, 0x2b33],
-  [0x21c4, 0x1f8d0],
-  [0x21cc, 0x1f8d1],
-  [0x21cc, 0x1f8d2],
-  [0x21cc, 0x1f8d3],
-  [0x21cb, 0x1f8d4],
-  [0x21cb, 0x1f8d5],
-  [0x219b, 0x1f8d6],
-  [0x21fb, 0x1f8d7],
-  [0x21ad, 0x1f8d8],
-];
 
 /** Download + extract the Nerd Fonts FontPatcher (cached); returns the dir holding `font-patcher`. */
 async function ensurePatcher(force?: boolean): Promise<string> {
@@ -133,29 +97,22 @@ function patchNerd(ttf: string, outDir: string, patcherDir: string): void {
   if (r.status !== 0) throw new Error(`font-patcher failed for ${ttf}`);
 }
 
-function hex(cp: number): string {
-  return cp.toString(16).toUpperCase().padStart(4, "0");
-}
-
-function copyGlyphs(codes: Array<[number, number]>): string {
-  return codes
-    .map(
-      ([source, target]) =>
-        `Select(0u${hex(source)}); Copy(); Select(0u${hex(target)}); Paste(); SetWidth(500);`,
-    )
-    .join(" ");
-}
-
 function patchReleaseGlyphs(ttf: string): void {
-  const copies = `${copyGlyphs(FULLWIDTH_FORMS)} ${copyGlyphs(MONO_GLYPH_ALIASES)}`;
-  const r = spawnSync(
-    "fontforge",
-    ["-quiet", "-lang=ff", "-c", `Open($1); ${copies} Generate($1)`, ttf],
-    { stdio: "inherit" },
-  );
-  if (r.status !== 0)
-    throw new Error(`fontforge release glyph patch failed for ${ttf}`);
-  setPostIsFixedPitch(ttf);
+  const tmp = mkdtempSync(join(tmpdir(), "pravka-fontforge-"));
+  try {
+    const script = join(tmp, "patch-release-font.py");
+    writeFileSync(script, patchReleaseFontScript);
+    const r = spawnSync(
+      "fontforge",
+      ["-quiet", "-lang=py", "-script", script, ttf],
+      { stdio: "inherit" },
+    );
+    if (r.status !== 0)
+      throw new Error(`fontforge release glyph patch failed for ${ttf}`);
+    setPostIsFixedPitch(ttf);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 function ttfToOtf(ttf: string, otf: string): void {
