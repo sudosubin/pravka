@@ -80,7 +80,7 @@ export interface StageOpts {
 export async function releaseTtf(opts: StageOpts = {}): Promise<void> {
   const out = opts.out ?? PATHS.release;
   const families = parseFamilies(opts.family);
-  if (families.includes("nerd")) requireFontforge();
+  requireFontforge();
   const fontDir = resolveFontDir(opts);
   for (const fam of families) {
     console.log(`\n=== ${FAMILY_DIR[fam]} ttf ===`);
@@ -149,7 +149,7 @@ export async function buildRelease(opts: ReleaseOpts = {}): Promise<void> {
   const out = opts.out ?? PATHS.release;
   const families = parseFamilies(opts.family);
   const formats = parseFormats(opts.formats);
-  if (families.includes("nerd") || formats.includes("otf")) requireFontforge();
+  requireFontforge();
   const fontDir = resolveFontDir(opts);
 
   rmSync(out, { recursive: true, force: true });

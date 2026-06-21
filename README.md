@@ -74,15 +74,14 @@ bun src/cli.ts release build            # one-shot: cleans dist/release/ and run
 
 | Stage | Purpose |
 |-------|---------|
-| `release ttf` | Build each family's TTFs (plain = rename, nerd = FontForge patch) |
+| `release ttf` | Build each family's TTFs and add PragmataPro-compatible Fullwidth Forms coverage (plain = rename, nerd = FontForge patch) |
 | `release otf` | Convert the built TTFs to OTF (FontForge) |
 | `release woff2` | Compress the built TTFs to WOFF2 |
 | `release package` | Zip each family directory and write `SHA256SUMS` |
 
 Produces two families (**Pravka** and **Pravka Nerd Font Mono**, `--mono` patched), each in **TTF, OTF, WOFF2**, plus versioned zips and `SHA256SUMS`. Useful flags: `--family plain|nerd|both`, `--formats ttf,otf,woff2`, `--font-dir <prebuilt>`, `--version <v>` (defaults to `package.json`).
 
-- **TTF + WOFF2** need no extra tools (Iosevka + the `wawoff2` npm package).
-- **OTF and the Nerd Font family** use [`fontforge`](https://fontforge.org) (the Nerd patcher is a FontForge script), provided by the dev flake, so run inside `nix develop`. The Nerd Fonts `FontPatcher` is downloaded and cached automatically. `dist/release/` is gitignored; upload its zips to GitHub Releases.
+- Release TTF/OTF and the Nerd Font family use [`fontforge`](https://fontforge.org) (for Fullwidth Forms coverage, OTF conversion, and the Nerd patcher), provided by the dev flake, so run inside `nix develop`. The Nerd Fonts `FontPatcher` is downloaded and cached automatically. `dist/release/` is gitignored; upload its zips to GitHub Releases.
 
 ## Running the search
 

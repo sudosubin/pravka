@@ -51,6 +51,20 @@ export const FAMILY_DIR: Record<Family, string> = {
 
 const NCPU = Math.max(1, availableParallelism() - 1);
 
+const FULLWIDTH_FORMS: Array<[number, number]> = [
+  ...Array.from(
+    { length: 0x7e - 0x21 + 1 },
+    (_, i) => [0x21 + i, 0xff01 + i] as [number, number],
+  ),
+  [0x00a2, 0xffe0],
+  [0x00a3, 0xffe1],
+  [0x00ac, 0xffe2],
+  [0x00af, 0xffe3],
+  [0x00a6, 0xffe4],
+  [0x00a5, 0xffe5],
+  [0x20a9, 0xffe6],
+];
+
 /** Download + extract the Nerd Fonts FontPatcher (cached); returns the dir holding `font-patcher`. */
 async function ensurePatcher(force?: boolean): Promise<string> {
   const dir = join("vendor", "nerd-fonts", NERD_FONTS_VERSION);
@@ -91,6 +105,25 @@ function patchNerd(ttf: string, outDir: string, patcherDir: string): void {
     { stdio: ["ignore", "ignore", "inherit"] },
   );
   if (r.status !== 0) throw new Error(`font-patcher failed for ${ttf}`);
+}
+
+function hex(cp: number): string {
+  return cp.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function fillFullwidthForms(ttf: string): void {
+  const copies = FULLWIDTH_FORMS.map(
+    ([source, target]) =>
+      `Select(0u${hex(source)}); Copy(); Select(0u${hex(target)}); Paste(); SetWidth(500);`,
+  ).join(" ");
+  const r = spawnSync(
+    "fontforge",
+    ["-quiet", "-lang=ff", "-c", `Open($1); ${copies} Generate($1)`, ttf],
+    { stdio: "inherit" },
+  );
+  if (r.status !== 0)
+    throw new Error(`fontforge fullwidth form patch failed for ${ttf}`);
+  setPostIsFixedPitch(ttf);
 }
 
 function ttfToOtf(ttf: string, otf: string): void {
@@ -193,7 +226,10 @@ export async function buildFamilyTtf(
         STYLE_BY_STEM[f.replace(/^Iosevkapravka-/, "").replace(/\.ttf$/, "")];
       if (!style) continue;
       const dest = join(ttfDir, `Pravka-${style}.ttf`);
-      if (force || !existsSync(dest)) copyFileSync(join(fontDir, f), dest);
+      if (force || !existsSync(dest)) {
+        copyFileSync(join(fontDir, f), dest);
+        fillFullwidthForms(dest);
+      }
     }
     return ttfDir;
   }
@@ -215,6 +251,7 @@ export async function buildFamilyTtf(
         join(ttfDir, `PravkaNerdFontMono-${fixed}.ttf`),
       );
   }
+  for (const f of listTtf(ttfDir)) fillFullwidthForms(join(ttfDir, f));
   return ttfDir;
 }
 
@@ -252,9 +289,8 @@ function hasTool(cmd: string): boolean {
 export function requireFontforge(): void {
   if (!hasTool("fontforge")) {
     throw new Error(
-      "fontforge not found on PATH; required for OTF and Nerd Font output.\n" +
-        "It is provided by the dev flake; run inside `nix develop` (or otherwise put fontforge on PATH).\n" +
-        "Plain TTF/WOFF2 build without fontforge: --family plain --formats ttf,woff2",
+      "fontforge not found on PATH; required for release TTF, OTF, and Nerd Font output.\n" +
+        "It is provided by the dev flake; run inside `nix develop` (or otherwise put fontforge on PATH).",
     );
   }
 }
