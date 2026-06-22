@@ -1,6 +1,6 @@
 {
   "name": "pravka",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Iosevka 34.6.3 custom build targeting PragmataPro",
   "type": "module",
