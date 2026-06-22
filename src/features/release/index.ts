@@ -1,11 +1,5 @@
-import { spawnSync } from "node:child_process";
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   buildFamilyTtf,
@@ -19,6 +13,7 @@ import {
 import { buildFont } from "@/shared/build/build.ts";
 import { PATHS } from "@/shared/paths.ts";
 import { sha256Hex } from "@/shared/render/snapshot.ts";
+import { writeZipFromDir } from "@/shared/util/zip.ts";
 
 export interface ReleaseOpts {
   recipe?: string;
@@ -37,10 +32,13 @@ function pkgVersion(): string {
   );
 }
 
-function listFilesRec(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? listFilesRec(join(dir, e.name)) : [join(dir, e.name)],
+async function listFilesRec(dir: string): Promise<string[]> {
+  const files = await Promise.all(
+    (await readdir(dir, { withFileTypes: true })).map((e) =>
+      e.isDirectory() ? listFilesRec(join(dir, e.name)) : [join(dir, e.name)],
+    ),
   );
+  return files.flat();
 }
 
 function parseFamilies(family?: string): Family[] {
@@ -108,9 +106,9 @@ export async function releaseDerive(
 }
 
 /** Stage: zip each family directory and write SHA256SUMS over the whole release tree. */
-export function packageRelease(
+export async function packageRelease(
   opts: { version?: string; family?: string; out?: string } = {},
-): void {
+): Promise<void> {
   const out = opts.out ?? PATHS.release;
   const version = opts.version ?? pkgVersion();
   const families = parseFamilies(opts.family);
@@ -121,23 +119,25 @@ export function packageRelease(
         `Missing ${join(out, FAMILY_DIR[fam])}; run the ttf/otf/woff2 stages first.`,
       );
     const zip = `${FAMILY_DIR[fam]}-${version}.zip`;
-    rmSync(join(out, zip), { force: true });
-    const r = spawnSync("zip", ["-rq", zip, FAMILY_DIR[fam]], {
-      cwd: out,
-      stdio: "inherit",
+    await rm(join(out, zip), { force: true });
+    await writeZipFromDir(join(out, FAMILY_DIR[fam]), join(out, zip), {
+      rootName: FAMILY_DIR[fam],
     });
-    if (r.status !== 0) throw new Error(`zip failed for ${FAMILY_DIR[fam]}`);
   }
 
-  const sums = listFilesRec(out)
-    .filter((f) => !f.endsWith("SHA256SUMS"))
-    .sort()
-    .map(
-      (f) =>
-        `${sha256Hex(readFileSync(f))}  ${relative(out, f).replaceAll("\\", "/")}`,
+  const files = await listFilesRec(out);
+  const sums = (
+    await Promise.all(
+      files
+        .filter((f) => !f.endsWith("SHA256SUMS"))
+        .sort()
+        .map(async (f) => {
+          const hash = sha256Hex(await readFile(f));
+          return `${hash}  ${relative(out, f).replaceAll("\\", "/")}`;
+        }),
     )
-    .join("\n");
-  writeFileSync(join(out, "SHA256SUMS"), `${sums}\n`);
+  ).join("\n");
+  await writeFile(join(out, "SHA256SUMS"), `${sums}\n`);
 
   console.log(`\nRelease ${version} → ${out}/`);
   for (const fam of families)
@@ -152,11 +152,11 @@ export async function buildRelease(opts: ReleaseOpts = {}): Promise<void> {
   requireFontforge();
   const fontDir = resolveFontDir(opts);
 
-  rmSync(out, { recursive: true, force: true });
+  await rm(out, { recursive: true, force: true });
   for (const fam of families) {
     console.log(`\n=== ${FAMILY_DIR[fam]} ===`);
     const ttfDir = await buildFamilyTtf(fam, fontDir, out, opts.force);
     await deriveFormats(ttfDir, out, fam, formats, opts.force);
   }
-  packageRelease({ out, version: opts.version, family: opts.family });
+  await packageRelease({ out, version: opts.version, family: opts.family });
 }

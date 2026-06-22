@@ -193,8 +193,8 @@ const packageCmd = buildCommand({
       },
     },
   },
-  func(flags: { version?: string; family: string; out: string }) {
-    packageRelease({
+  async func(flags: { version?: string; family: string; out: string }) {
+    await packageRelease({
       version: flags.version,
       family: flags.family,
       out: flags.out,

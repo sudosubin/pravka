@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { FSD_DIR, VENDOR_DIR } from "@/shared/paths.ts";
 
@@ -34,8 +35,8 @@ export async function downloadTo(
   if (!opts.force && existsSync(path) && statSync(path).size > 0) return path;
   const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
   if (!res.ok) throw new Error(`Download failed (${res.status}): ${url}`);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, Buffer.from(await res.arrayBuffer()));
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, Buffer.from(await res.arrayBuffer()));
   return path;
 }
 

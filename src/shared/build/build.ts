@@ -8,11 +8,13 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
 import { availableParallelism } from "node:os";
 import { basename, join } from "node:path";
 import { DIST_DIR, VENDOR_DIR as VENDOR_ROOT } from "@/shared/paths.ts";
 import { recipeHash } from "@/shared/render/snapshot.ts";
 import { downloadTo } from "@/shared/source.ts";
+import { extractZip } from "@/shared/util/zip.ts";
 
 const IOSEVKA_VERSION = "34.4.0";
 
@@ -37,28 +39,25 @@ export async function setupIosevka(
     return VENDOR_DIR;
   }
   const vendor = VENDOR_ROOT;
-  mkdirSync(vendor, { recursive: true });
+  await mkdir(vendor, { recursive: true });
 
   if (opts.force || !existsSync(VENDOR_DIR)) {
     console.log(`Downloading Iosevka ${IOSEVKA_VERSION}…`);
-    const tar = join(vendor, `iosevka-${IOSEVKA_VERSION}.tar.gz`);
+    const zip = join(vendor, `iosevka-${IOSEVKA_VERSION}.zip`);
     await downloadTo(
-      `https://github.com/be5invis/Iosevka/archive/refs/tags/v${IOSEVKA_VERSION}.tar.gz`,
-      tar,
+      `https://github.com/be5invis/Iosevka/archive/refs/tags/v${IOSEVKA_VERSION}.zip`,
+      zip,
       { force: true },
     );
-    rmSync(VENDOR_DIR, { recursive: true, force: true });
-    mkdirSync(VENDOR_DIR, { recursive: true });
-    const ex = spawnSync(
-      "tar",
-      ["-xzf", tar, "--strip-components=1", "-C", VENDOR_DIR],
-      { stdio: "inherit" },
-    );
-    if (ex.status !== 0) {
-      rmSync(VENDOR_DIR, { recursive: true, force: true });
-      throw new Error("tar extraction failed");
+    await rm(VENDOR_DIR, { recursive: true, force: true });
+    await mkdir(VENDOR_DIR, { recursive: true });
+    try {
+      await extractZip(zip, VENDOR_DIR, { stripComponents: 1 });
+    } catch (error) {
+      await rm(VENDOR_DIR, { recursive: true, force: true });
+      throw error;
     }
-    rmSync(tar, { force: true });
+    await rm(zip, { force: true });
     console.log(`Extracted to ${VENDOR_DIR}`);
   }
 

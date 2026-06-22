@@ -17,7 +17,7 @@ Both are required: Bun runs the tooling, npm compiles Iosevka.
 
 ```sh
 # Download Iosevka 34.4.0 source to vendor/ and install its npm dependencies.
-# Idempotent, safe to re-run. (Requires system `tar`.)
+# Idempotent, safe to re-run.
 bun src/cli.ts build setup
 ```
 

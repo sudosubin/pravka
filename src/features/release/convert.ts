@@ -1,8 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
-  copyFileSync,
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -10,6 +8,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { join } from "node:path";
 import { compress as woff2Compress } from "wawoff2";
@@ -18,6 +17,7 @@ import patchReleaseFontScript from "@/features/release/patch-release-font.py" wi
 };
 import { downloadTo } from "@/shared/source.ts";
 import { pMap } from "@/shared/util/io.ts";
+import { extractZip } from "@/shared/util/zip.ts";
 
 const NERD_FONTS_VERSION = "3.4.0";
 const PATCHER_URL = `https://github.com/ryanoasis/nerd-fonts/releases/download/v${NERD_FONTS_VERSION}/FontPatcher.zip`;
@@ -66,13 +66,8 @@ async function ensurePatcher(force?: boolean): Promise<string> {
     `FontPatcher-${NERD_FONTS_VERSION}.zip`,
   );
   await downloadTo(PATCHER_URL, zip, { force });
-  mkdirSync(dir, { recursive: true });
-  if (
-    spawnSync("unzip", ["-oq", zip, "-d", dir], { stdio: "inherit" }).status !==
-    0
-  ) {
-    throw new Error(`Failed to extract ${zip}`);
-  }
+  await mkdir(dir, { recursive: true });
+  await extractZip(zip, dir);
   if (!existsSync(script))
     throw new Error(`font-patcher not found after extracting ${zip}`);
   return dir;
@@ -186,8 +181,8 @@ function setPostIsFixedPitch(otf: string): void {
 async function ttfToWoff2(ttf: string, woff2: string): Promise<void> {
   // Copy into a tight Uint8Array: a Node Buffer's underlying ArrayBuffer is a shared pool,
   // which wawoff2 would otherwise read past, producing a corrupt WOFF2.
-  const input = Uint8Array.from(readFileSync(ttf));
-  writeFileSync(woff2, Buffer.from(await woff2Compress(input)));
+  const input = Uint8Array.from(await readFile(ttf));
+  await writeFile(woff2, Buffer.from(await woff2Compress(input)));
 }
 
 export function listTtf(dir: string): string[] {
@@ -204,7 +199,7 @@ export async function buildFamilyTtf(
   force?: boolean,
 ): Promise<string> {
   const ttfDir = join(work, FAMILY_DIR[fam], "ttf");
-  mkdirSync(ttfDir, { recursive: true });
+  await mkdir(ttfDir, { recursive: true });
   const sources = readdirSync(fontDir).filter(
     (f) => f.startsWith("Iosevkapravka-") && f.endsWith(".ttf"),
   );
@@ -216,7 +211,7 @@ export async function buildFamilyTtf(
       if (!style) continue;
       const dest = join(ttfDir, `Pravka-${style}.ttf`);
       if (force || !existsSync(dest)) {
-        copyFileSync(join(fontDir, f), dest);
+        await copyFile(join(fontDir, f), dest);
         patchReleaseGlyphs(dest);
       }
     }
@@ -254,7 +249,7 @@ export async function deriveFormats(
   const ttfs = listTtf(ttfDir);
   if (formats.includes("woff2")) {
     const dir = join(work, FAMILY_DIR[fam], "woff2");
-    mkdirSync(dir, { recursive: true });
+    await mkdir(dir, { recursive: true });
     // wawoff2 is a single shared WASM instance; concurrent calls corrupt each other, so run serially.
     for (const t of ttfs) {
       const dest = join(dir, t.replace(/\.ttf$/, ".woff2"));
@@ -263,7 +258,7 @@ export async function deriveFormats(
   }
   if (formats.includes("otf")) {
     const dir = join(work, FAMILY_DIR[fam], "otf");
-    mkdirSync(dir, { recursive: true });
+    await mkdir(dir, { recursive: true });
     await pMap(ttfs, NCPU, async (t) => {
       const dest = join(dir, t.replace(/\.ttf$/, ".otf"));
       if (force || !existsSync(dest)) ttfToOtf(join(ttfDir, t), dest);
