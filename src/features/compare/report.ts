@@ -1,9 +1,8 @@
 import { join } from "node:path";
 
 import { renderCompare } from "@/features/compare/engine.ts";
-import { findRegularTtf } from "@/shared/build/build.ts";
-import { BEST_RECIPE, FONTS_DIR, PATHS } from "@/shared/paths.ts";
-import { recipeHash } from "@/shared/render/snapshot.ts";
+import { buildFontCacheDir, findRegularTtf } from "@/shared/build/build.ts";
+import { BEST_RECIPE, PATHS } from "@/shared/paths.ts";
 
 export interface ReportOpts {
   font?: string;
@@ -14,9 +13,8 @@ export interface ReportOpts {
 /** Local HTML report (reference | Pravka | diff) for every sample + block → dist/reports/compare. */
 export async function renderReport(opts: ReportOpts = {}): Promise<string> {
   // Default to the current-best build (content-addressed by recipe hash, so it tracks the recipe
-  // rather than freezing a specific build directory).
-  const fontPath =
-    opts.font ?? findRegularTtf(join(FONTS_DIR, recipeHash(BEST_RECIPE)));
+  // and Iosevka version rather than freezing a specific build directory).
+  const fontPath = opts.font ?? findRegularTtf(buildFontCacheDir(BEST_RECIPE));
   if (!fontPath)
     throw new Error(
       "No built font for the current-best recipe. Run `pravka build font` first, or pass --font.",

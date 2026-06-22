@@ -16,7 +16,7 @@ Both are required: Bun runs the tooling, npm compiles Iosevka.
 ## Setup
 
 ```sh
-# Download Iosevka 34.4.0 source to vendor/ and install its npm dependencies.
+# Download Iosevka 34.6.3 source to vendor/ and install its npm dependencies.
 # Idempotent, safe to re-run.
 bun src/cli.ts build setup
 ```
@@ -119,7 +119,7 @@ The search iterates axes in the order defined in `src/features/search/index.ts:A
 
 ## Caveats
 
-- **Each search candidate triggers a full Iosevka compile.** This can take 30-90 seconds per variant. The cache at `dist/fonts/<hash>/` makes repeated runs fast; do not delete it casually (gitignored under dist/).
+- **Each search candidate triggers a full Iosevka compile.** This can take 30-90 seconds per variant. The cache at `dist/fonts/<iosevka-version>-<hash>/` makes repeated runs fast; do not delete it casually (gitignored under dist/).
 - **`src/shared/recipe/recipes/current-best.toml` is overwritten in place** by the search. Its `.bak` is gitignored.
 - The build target `ttf-unhinted::Iosevkapravka` (`src/shared/build/build.ts`) must match the plan key `Iosevkapravka` in the recipe TOML. Changing the `set` name in the recipe breaks the build.
 

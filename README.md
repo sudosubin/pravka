@@ -2,7 +2,7 @@
 
 [![PragmataPro 0.903](https://img.shields.io/badge/PragmataPro-0.903-red)](https://fsd.it/shop/fonts/pragmatapro/)
 
-A free, open-source monospace font: an Iosevka 34.4 custom build visually tuned to PragmataPro.
+A free, open-source monospace font: an Iosevka 34.6 custom build visually tuned to PragmataPro.
 
 ![Code sample](docs/assets/showcase/code-sample.png)
 
@@ -52,13 +52,13 @@ For each candidate, Iosevka is compiled and the affected glyphs are rasterized a
 **Prerequisites:** [Bun](https://bun.sh) and Node.js/npm (both are required: Bun runs the tooling, npm compiles Iosevka). All tooling is exposed through one CLI: `bun src/cli.ts <command>` (or `bun link` to install it as `pravka`). Run `bun src/cli.ts --help` to see every command.
 
 ```sh
-# 1. Download Iosevka 34.4 source and install its dependencies
+# 1. Download Iosevka 34.6 source and install its dependencies
 bun src/cli.ts build setup
 
 # 2. Build the font from the current best recipe
 bun src/cli.ts build font
 
-# Output TTFs land in dist/fonts/<hash>/
+# Output TTFs land in dist/fonts/<iosevka-version>-<hash>/
 ```
 
 Built TTFs include Regular, Semibold, Bold, and Black weights, each in Upright and Italic (8 files total).

@@ -34,7 +34,7 @@ l = "zshaped"
 tittle = "round"
 q = "straight-serifless"
 capital-r = "curly-serifless"
-at = "fourfold-solid-inner"
+at = "threefold"
 ampersand = "upper-open"
 
 [buildPlans.Iosevkapravka.weights.regular]

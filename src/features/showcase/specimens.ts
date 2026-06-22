@@ -34,7 +34,7 @@ const CODE: CodeSpecimen = {
   leading: 24,
   lines: [
     {
-      text: "// Pravka: Iosevka 34.4 tuned to PragmataPro",
+      text: "// Pravka: Iosevka 34.6 tuned to PragmataPro",
       role: "comment",
     },
     {

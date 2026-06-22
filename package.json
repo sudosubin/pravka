@@ -2,7 +2,7 @@
   "name": "pravka",
   "version": "0.1.1",
   "private": true,
-  "description": "Iosevka 34.4.0 custom build targeting PragmataPro",
+  "description": "Iosevka 34.6.3 custom build targeting PragmataPro",
   "type": "module",
   "bin": {
     "pravka": "src/cli.ts"

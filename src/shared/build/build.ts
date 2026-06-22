@@ -16,7 +16,7 @@ import { recipeHash } from "@/shared/render/snapshot.ts";
 import { downloadTo } from "@/shared/source.ts";
 import { extractZip } from "@/shared/util/zip.ts";
 
-const IOSEVKA_VERSION = "34.4.0";
+const IOSEVKA_VERSION = "34.6.3";
 
 export const VENDOR_DIR = join(VENDOR_ROOT, `iosevka-${IOSEVKA_VERSION}`);
 const LOWERCASE_IOSEVKA_DIR = `iosevka-${IOSEVKA_VERSION}`;
@@ -24,6 +24,14 @@ const LOWERCASE_IOSEVKA_DIR = `iosevka-${IOSEVKA_VERSION}`;
 /** Iosevka design-variant / ligation param files (from the vendored source). */
 export const VARIANTS_TOML = join(VENDOR_DIR, "params", "variants.toml");
 export const LIGATION_TOML = join(VENDOR_DIR, "params", "ligation-set.toml");
+
+export function buildFontCacheDir(recipePath: string): string {
+  return join(
+    DIST_DIR,
+    "fonts",
+    `${IOSEVKA_VERSION}-${recipeHash(recipePath)}`,
+  );
+}
 
 /** Download the Iosevka source to vendor/ and install its deps (idempotent). Drives `build setup`. */
 export async function setupIosevka(
@@ -112,8 +120,7 @@ export function buildFont(recipePath: string): string | null {
     return null;
   }
 
-  const rhash = recipeHash(recipePath);
-  const cacheDir = join(DIST_DIR, "fonts", rhash);
+  const cacheDir = buildFontCacheDir(recipePath);
   const cached =
     existsSync(cacheDir) &&
     readdirSync(cacheDir).some((f) => f.endsWith(".ttf"));

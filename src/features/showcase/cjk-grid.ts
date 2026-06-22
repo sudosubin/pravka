@@ -1,13 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { createCanvas } from "@napi-rs/canvas";
 import sharp from "sharp";
 import {
   isEastAsianWide,
   setupFonts,
 } from "@/features/showcase/canvas-text.ts";
-import { BASE_RECIPE, FONTS_DIR, PATHS } from "@/shared/paths.ts";
-import { recipeHash } from "@/shared/render/snapshot.ts";
+import { buildFontCacheDir } from "@/shared/build/build.ts";
+import { BASE_RECIPE, PATHS } from "@/shared/paths.ts";
 import { VISUAL_PNG } from "@/shared/util/image.ts";
 
 export interface CjkGridOpts {
@@ -24,7 +24,7 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
   // Local-only regression artifact (dist/ is gitignored), not a committed doc asset.
   const outPath = opts.out ?? PATHS.cjkGridPng;
   const SIZE = opts.size ?? 28;
-  const fontDir = opts.fontDir ?? join(FONTS_DIR, recipeHash(BASE_RECIPE));
+  const fontDir = opts.fontDir ?? buildFontCacheDir(BASE_RECIPE);
   const HALF = SIZE / 2;
 
   await setupFonts(fontDir);
