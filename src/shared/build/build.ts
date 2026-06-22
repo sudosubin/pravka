@@ -4,7 +4,6 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
-  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -18,6 +17,7 @@ import { downloadTo } from "@/shared/source.ts";
 const IOSEVKA_VERSION = "34.4.0";
 
 export const VENDOR_DIR = join(VENDOR_ROOT, `iosevka-${IOSEVKA_VERSION}`);
+const LOWERCASE_IOSEVKA_DIR = `iosevka-${IOSEVKA_VERSION}`;
 
 /** Iosevka design-variant / ligation param files (from the vendored source). */
 export const VARIANTS_TOML = join(VENDOR_DIR, "params", "variants.toml");
@@ -27,6 +27,7 @@ export const LIGATION_TOML = join(VENDOR_DIR, "params", "ligation-set.toml");
 export async function setupIosevka(
   opts: { force?: boolean } = {},
 ): Promise<string> {
+  normalizeIosevkaVendorDir();
   if (
     !opts.force &&
     existsSync(VENDOR_DIR) &&
@@ -46,16 +47,17 @@ export async function setupIosevka(
       tar,
       { force: true },
     );
-    const ex = spawnSync("tar", ["-xzf", tar, "-C", vendor], {
-      stdio: "inherit",
-    });
-    if (ex.status !== 0) throw new Error("tar extraction failed");
-    const extracted = join(vendor, `Iosevka-${IOSEVKA_VERSION}`);
-    // macOS APFS is case-insensitive: extracted dir may already equal VENDOR_DIR.
-    const sameDir =
-      existsSync(VENDOR_DIR) &&
-      realpathSync(extracted) === realpathSync(VENDOR_DIR);
-    if (!sameDir) renameSync(extracted, VENDOR_DIR);
+    rmSync(VENDOR_DIR, { recursive: true, force: true });
+    mkdirSync(VENDOR_DIR, { recursive: true });
+    const ex = spawnSync(
+      "tar",
+      ["-xzf", tar, "--strip-components=1", "-C", VENDOR_DIR],
+      { stdio: "inherit" },
+    );
+    if (ex.status !== 0) {
+      rmSync(VENDOR_DIR, { recursive: true, force: true });
+      throw new Error("tar extraction failed");
+    }
     rmSync(tar, { force: true });
     console.log(`Extracted to ${VENDOR_DIR}`);
   }
@@ -68,6 +70,22 @@ export async function setupIosevka(
   if (inst.status !== 0) throw new Error("bun install failed");
   console.log(`Done. Iosevka ${IOSEVKA_VERSION} ready at ${VENDOR_DIR}`);
   return VENDOR_DIR;
+}
+
+function normalizeIosevkaVendorDir(): void {
+  if (!existsSync(VENDOR_ROOT)) return;
+  const actual = readdirSync(VENDOR_ROOT).find(
+    (name) =>
+      name.toLowerCase() === LOWERCASE_IOSEVKA_DIR &&
+      name !== LOWERCASE_IOSEVKA_DIR,
+  );
+  if (!actual) return;
+
+  const actualPath = join(VENDOR_ROOT, actual);
+  const tmp = join(VENDOR_ROOT, `.rename-${LOWERCASE_IOSEVKA_DIR}`);
+  rmSync(tmp, { recursive: true, force: true });
+  renameSync(actualPath, tmp);
+  renameSync(tmp, VENDOR_DIR);
 }
 
 export function findRegularTtf(fontDir: string): string | null {
