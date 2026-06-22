@@ -58,7 +58,7 @@ These flags recur across commands with consistent meaning:
 | `vendor/iosevka-<ver>` | Iosevka source checkout used to compile the font |
 | `vendor/nerd-fonts` | Cached Nerd Fonts `FontPatcher` |
 | `vendor/fsd` | fsd.it PragmataPro reference images |
-| `vendor/noto-cjk` | Noto CJK fonts for CJK comparison |
+| `vendor/source-han-mono-<version>` | Source Han Mono font for CJK comparison |
 
 ## Building the font
 

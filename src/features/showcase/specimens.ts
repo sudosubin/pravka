@@ -111,8 +111,7 @@ const CJK: CodeSpecimen = {
   kind: "code",
   id: "cjk",
   title: "CJK Integration: Korean · Japanese · Chinese",
-  // Wide (EAW) chars take 2 cells; Korean Hangul (Noto CJK 920u) is centered in that slot, as
-  // terminals do. No separate KR font required.
+  // Wide (EAW) chars take 2 cells; Source Han Mono glyphs are 1em, matching that slot.
   width: 720,
   paddingX: 28,
   paddingY: 24,

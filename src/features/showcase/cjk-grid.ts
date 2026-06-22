@@ -29,19 +29,23 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
 
   await setupFonts(fontDir);
 
-  const GROUPS: { label: string; chars: string; expectedCells: number }[] = [
+  const GROUPS: {
+    label: string;
+    chars: string;
+    expectedCells: number;
+  }[] = [
     {
       label: "Latin (Pravka, 0.5em)",
       chars: "ABCDabcd0123!@#$",
       expectedCells: 1,
     },
     {
-      label: "Hiragana (CJK JP, 1em)",
+      label: "Hiragana (Source Han Mono, 1em)",
       chars: "あいうえおかきくけこ",
       expectedCells: 2,
     },
     {
-      label: "Katakana (CJK JP, 1em)",
+      label: "Katakana (Source Han Mono, 1em)",
       chars: "アイウエオカキクケコ",
       expectedCells: 2,
     },
@@ -56,7 +60,7 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
       expectedCells: 2,
     },
     {
-      label: "Korean Hangul (920u font, EAW→2 cells ✓)",
+      label: "Korean Hangul (Source Han Mono, 1em)",
       chars: "가나다라마바사아자차",
       expectedCells: 2,
     },
@@ -91,7 +95,9 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
     ctx.stroke();
   }
 
-  const FONT_MIXED = `${SIZE}px 'Pravka', 'Noto Sans Mono CJK JP'`;
+  const FONT_MIXED = `${SIZE}px 'Pravka', 'Source Han Mono'`;
+  const FONT_CJK = `600 ${SIZE}px 'Source Han Mono'`;
+  const LANG_CJK = "ko";
   const FONT_LABEL = "10px monospace";
   const TOL = 0.02;
 
@@ -105,15 +111,15 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
     ctx.fillText(g.label, PAD, rowY + 10);
 
     ctx.font = FONT_MIXED;
-    const halfEmWidth = ctx.measureText("A").width;
     let x = PAD;
     let allOk = true;
     for (const ch of [...g.chars].slice(0, MAX_CHARS)) {
       const cp = ch.codePointAt(0) ?? 0;
-      const eawCell = isEastAsianWide(cp)
-        ? halfEmWidth * 2
-        : ctx.measureText(ch).width;
-      const ok = Math.abs(eawCell - expectedW) / expectedW <= TOL;
+      const useCjkFont = isEastAsianWide(cp);
+      ctx.font = useCjkFont ? FONT_CJK : FONT_MIXED;
+      ctx.lang = useCjkFont ? LANG_CJK : "inherit";
+      const rawFontW = ctx.measureText(ch).width;
+      const ok = Math.abs(rawFontW - expectedW) / expectedW <= TOL;
       if (!ok) allOk = false;
 
       ctx.fillStyle = ok ? "rgba(60,180,80,0.1)" : "rgba(220,60,60,0.18)";
@@ -123,23 +129,25 @@ export async function renderCjkGrid(opts: CjkGridOpts = {}): Promise<string> {
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, rowY + LABEL_H + 0.5, expectedW - 1, SIZE + 1);
 
-      const rawFontW = ctx.measureText(ch).width;
-      if (isEastAsianWide(cp) && Math.abs(rawFontW - eawCell) > 0.5) {
+      if (isEastAsianWide(cp) && Math.abs(rawFontW - expectedW) > 0.5) {
         ctx.fillStyle = "rgba(255,180,40,0.5)";
         ctx.fillRect(x, rowY + LABEL_H + SIZE + 2, rawFontW, 2);
       }
 
-      const offset = isEastAsianWide(cp) ? (eawCell - rawFontW) / 2 : 0;
       ctx.fillStyle = ok ? "#cdd6f4" : "#ffaaaa";
-      ctx.fillText(ch, x + offset, baseline);
+      ctx.font = useCjkFont ? FONT_CJK : FONT_MIXED;
+      ctx.lang = useCjkFont ? LANG_CJK : "inherit";
+      ctx.fillText(ch, x, baseline);
 
       x += expectedW;
     }
 
-    const sampleEaw = isEastAsianWide(g.chars.codePointAt(0) ?? 0)
-      ? halfEmWidth * 2
-      : ctx.measureText(g.chars[0] ?? "A").width;
-    const ratio = sampleEaw / HALF;
+    const sample = g.chars[0] ?? "A";
+    const sampleCp = sample.codePointAt(0) ?? 0;
+    const sampleUsesCjkFont = isEastAsianWide(sampleCp);
+    ctx.font = sampleUsesCjkFont ? FONT_CJK : FONT_MIXED;
+    ctx.lang = sampleUsesCjkFont ? LANG_CJK : "inherit";
+    const ratio = ctx.measureText(sample).width / HALF;
     const badge = allOk
       ? `✓ ${ratio.toFixed(3)}× (EAW)`
       : `✗ ${ratio.toFixed(3)}× (want ${g.expectedCells}.000×)`;

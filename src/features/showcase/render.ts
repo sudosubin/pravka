@@ -28,8 +28,12 @@ function fontSpec(
   style: string,
   hasCjk: boolean,
 ): string {
-  const cjk = hasCjk ? ", 'Noto Sans Mono CJK JP'" : "";
+  const cjk = hasCjk ? ", 'Source Han Mono'" : "";
   return `${style === "italic" ? "italic " : ""}${weight} ${fontSize}px 'Pravka'${cjk}`;
+}
+
+function cjkFontSpec(fontSize: number): string {
+  return `600 ${fontSize}px 'Source Han Mono'`;
 }
 
 function baseOpts(
@@ -45,6 +49,8 @@ function baseOpts(
 ): CanvasRenderOpts {
   return {
     defaultFont: fontSpec(spec.fontSize, 400, "normal", hasCjk),
+    cjkFont: hasCjk ? cjkFontSpec(spec.fontSize) : undefined,
+    cjkLang: hasCjk ? "ko" : undefined,
     bg: theme.bg,
     width: spec.width,
     paddingX: spec.paddingX,

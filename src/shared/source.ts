@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-
 import { FSD_DIR, VENDOR_DIR } from "@/shared/paths.ts";
 
 export interface Source {
@@ -40,18 +39,21 @@ export async function downloadTo(
   return path;
 }
 
-// Noto Sans Mono CJK (Variable OTC) is the CJK fallback for specimen rendering; pinned to a release
-// tag for reproducibility and cached under vendor/ (gitignored).
-const NOTO_CJK_TAG = "Sans2.004";
-const NOTO_CJK_URL = `https://raw.githubusercontent.com/notofonts/noto-cjk/${NOTO_CJK_TAG}/Sans/Variable/OTC/NotoSansMonoCJK-VF.otf.ttc`;
+// Source Han Mono is the CJK fallback for specimen rendering; pinned to the same release rev used
+// by nixpkgs (`source-han-mono` 1.002) and cached under vendor/ (gitignored).
+const SOURCE_HAN_MONO_VERSION = "1.002";
+const SOURCE_HAN_MONO_URL = `https://github.com/adobe-fonts/source-han-mono/releases/download/${SOURCE_HAN_MONO_VERSION}/SourceHanMono.ttc`;
+const SOURCE_HAN_MONO_TTC = join(
+  VENDOR_DIR,
+  `source-han-mono-${SOURCE_HAN_MONO_VERSION}`,
+  "SourceHanMono.ttc",
+);
 
-/** Download + cache the Noto Sans Mono CJK fallback font; returns its local path. */
-export function ensureCjkFont(opts: { force?: boolean } = {}): Promise<string> {
-  return downloadTo(
-    NOTO_CJK_URL,
-    join(VENDOR_DIR, "noto-cjk", "NotoSansMonoCJK-VF.otf.ttc"),
-    opts,
-  );
+/** Download + cache the Source Han Mono CJK fallback font; returns its local path. */
+export async function ensureCjkFont(
+  opts: { force?: boolean } = {},
+): Promise<string> {
+  return downloadTo(SOURCE_HAN_MONO_URL, SOURCE_HAN_MONO_TTC, opts);
 }
 
 /** Ensure a registered source image is cached locally; returns its path. */

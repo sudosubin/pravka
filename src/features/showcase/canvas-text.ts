@@ -12,11 +12,14 @@ import { VISUAL_PNG } from "@/shared/util/image.ts";
 export interface CanvasLine {
   tokens: Token[];
   fontSpec?: string;
+  cjkLang?: string;
   advance?: number;
 }
 
 export interface CanvasRenderOpts {
   defaultFont: string;
+  cjkFont?: string;
+  cjkLang?: string;
   bg: string;
   width: number;
   paddingX: number;
@@ -51,7 +54,7 @@ export async function setupFonts(fontDir: string): Promise<void> {
   for (const f of readdirSync(fontDir)) {
     if (f.endsWith(".ttf")) GlobalFonts.registerFromPath(join(fontDir, f));
   }
-  // CJK fallback: explicit override, else the cached Noto download (skipped if offline).
+  // CJK fallback: explicit override, else the cached Source Han Mono download (skipped if offline).
   const cjk =
     process.env.PRAVKA_CJK_FONT ?? (await ensureCjkFont().catch(() => null));
   if (cjk && existsSync(cjk)) GlobalFonts.registerFromPath(cjk);
@@ -245,30 +248,19 @@ export async function renderCanvasLines(
     const ascent = Math.max(latinAscent, cjkAscent);
     baselineY += ascent;
 
-    // halfEmWidth = advance of one Latin character (Pravka = 0.5em).
-    // East Asian Wide chars get exactly 2× this, mirroring terminal EAW allocation.
-    const halfEmWidth = ctx.measureText("A").width;
-
     let x = opts.paddingX;
     for (const token of line.tokens) {
       if (!token.text) continue;
       ctx.font = fontSpec;
       ctx.fillStyle = token.color;
-
-      // Iterate code-point by code-point to apply EAW cell allocation.
+      const cjkLang = line.cjkLang ?? opts.cjkLang;
       for (const char of token.text) {
         const cp = char.codePointAt(0) ?? 0;
-        if (isEastAsianWide(cp)) {
-          // 2-column cell: center the glyph (advance may be < 2× for 920u fonts).
-          const cellWidth = halfEmWidth * 2;
-          const glyphWidth = ctx.measureText(char).width;
-          const offset = (cellWidth - glyphWidth) / 2;
-          ctx.fillText(char, x + offset, baselineY);
-          x += cellWidth;
-        } else {
-          ctx.fillText(char, x, baselineY);
-          x += ctx.measureText(char).width;
-        }
+        const useCjkFont = opts.cjkFont && isEastAsianWide(cp);
+        ctx.font = useCjkFont ? opts.cjkFont! : fontSpec;
+        ctx.lang = useCjkFont ? (cjkLang ?? "inherit") : "inherit";
+        ctx.fillText(char, x, baselineY);
+        x += ctx.measureText(char).width;
       }
     }
 

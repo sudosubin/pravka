@@ -101,7 +101,7 @@ bun src/cli.ts showcase specimen      # writes docs/assets/showcase/*.png
 bun src/cli.ts compare docs           # writes docs/assets/compare/**/{pragmatapro,pravka,diff}.png
 ```
 
-CJK text (Korean, Japanese, Chinese) is rendered via [Noto Sans Mono CJK](https://github.com/notofonts/noto-cjk) as a fallback alongside Pravka. The font (Variable OTC, pinned to tag `Sans2.004`) is downloaded and cached automatically under `vendor/noto-cjk/`; set `PRAVKA_CJK_FONT` to use a local file instead.
+CJK text (Korean, Japanese, Chinese) is rendered via [Source Han Mono](https://github.com/adobe-fonts/source-han-mono) as a fallback alongside Pravka. The font is pinned to release `1.002`, downloaded automatically, and cached under `vendor/source-han-mono-1.002/`; CJK glyphs are drawn with canvas language `ko` and a heavier font weight to match the Korean Source Han Mono regional forms used with Kiro while keeping their 1em advance. Set `PRAVKA_CJK_FONT` to use a local file instead.
 
 ## License
 
